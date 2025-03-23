@@ -487,39 +487,227 @@ def pagina_historico(movimentacoes, produtos, responsaveis, unidades):
 def pagina_responsaveis_unidades(responsaveis, unidades):
     st.title("Responsáveis e Unidades")
     menu()  # Adicionar o menu aqui
-    
+
+    # Função para gerar o próximo ID disponível
+    def proximo_id(df, coluna_id):
+        if df.empty:
+            return 1
+        else:
+            return df[coluna_id].max() + 1
+
+    # Função para adicionar responsável
+    def adicionar_responsavel(responsaveis, nome_responsavel, id_unidade, cargo, telefone):
+        novo_id = proximo_id(responsaveis, 'ID Responsavel')  # Gera o próximo ID
+        novo_responsavel = {
+            'ID Responsavel': novo_id,
+            'Nome do Responsável': nome_responsavel,
+            'ID Unidade': id_unidade,
+            'Cargo': cargo,
+            'Telefone': telefone
+        }
+        responsaveis = pd.concat([responsaveis, pd.DataFrame([novo_responsavel])], ignore_index=True)
+        return responsaveis
+
+    # Função para editar responsável
+    def editar_responsavel(responsaveis, nome_antigo, nome_novo, id_unidade, cargo, telefone):
+        responsaveis.loc[responsaveis['Nome do Responsável'] == nome_antigo, 'Nome do Responsável'] = nome_novo
+        responsaveis.loc[responsaveis['Nome do Responsável'] == nome_novo, 'ID Unidade'] = id_unidade
+        responsaveis.loc[responsaveis['Nome do Responsável'] == nome_novo, 'Cargo'] = cargo
+        responsaveis.loc[responsaveis['Nome do Responsável'] == nome_novo, 'Telefone'] = telefone
+        return responsaveis
+
+    # Função para excluir responsável
+    def excluir_responsavel(responsaveis, nome_responsavel):
+        responsaveis = responsaveis[responsaveis['Nome do Responsável'] != nome_responsavel]
+        return responsaveis
+
+    # Função para adicionar unidade
+    def adicionar_unidade(unidades, nome_unidade, endereco, cidade, estado):
+        novo_id = proximo_id(unidades, 'ID Unidade')  # Gera o próximo ID
+        nova_unidade = {
+            'ID Unidade': novo_id,
+            'Nome da Unidade': nome_unidade,
+            'Endereço': endereco,
+            'Cidade': cidade,
+            'Estado': estado
+        }
+        unidades = pd.concat([unidades, pd.DataFrame([nova_unidade])], ignore_index=True)
+        return unidades
+
+    # Função para editar unidade
+    def editar_unidade(unidades, nome_antigo, nome_novo, endereco, cidade, estado):
+        unidades.loc[unidades['Nome da Unidade'] == nome_antigo, 'Nome da Unidade'] = nome_novo
+        unidades.loc[unidades['Nome da Unidade'] == nome_novo, 'Endereço'] = endereco
+        unidades.loc[unidades['Nome da Unidade'] == nome_novo, 'Cidade'] = cidade
+        unidades.loc[unidades['Nome da Unidade'] == nome_novo, 'Estado'] = estado
+        return unidades
+
+    # Função para excluir unidade
+    def excluir_unidade(unidades, nome_unidade):
+        unidades = unidades[unidades['Nome da Unidade'] != nome_unidade]
+        return unidades
+
+    # Botões para responsáveis
+    st.markdown("### Responsáveis")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        if st.button("➕", key="btn_add_responsavel"):
+            st.session_state['mostrar_adicionar_responsavel'] = True
+            st.session_state['mostrar_editar_responsavel'] = False
+            st.session_state['mostrar_excluir_responsavel'] = False
+    with col2:
+        if st.button("✏️", key="btn_editar_responsavel"):
+            st.session_state['mostrar_adicionar_responsavel'] = False
+            st.session_state['mostrar_editar_responsavel'] = True
+            st.session_state['mostrar_excluir_responsavel'] = False
+    with col3:
+        if st.button("🗑️", key="btn_excluir_responsavel"):
+            st.session_state['mostrar_adicionar_responsavel'] = False
+            st.session_state['mostrar_editar_responsavel'] = False
+            st.session_state['mostrar_excluir_responsavel'] = True
+
+    # Formulário para adicionar responsável
+    if st.session_state.get('mostrar_adicionar_responsavel', False):
+        with st.form("form_adicionar_responsavel"):
+            st.markdown("#### Adicionar Responsável")
+            nome_responsavel = st.text_input("Nome do Responsável", key="nome_responsavel_add")
+            id_unidade = st.number_input("ID da Unidade", min_value=1, key="id_unidade_add")
+            cargo = st.text_input("Cargo", key="cargo_add")
+            telefone = st.text_input("Telefone", key="telefone_add")
+            if st.form_submit_button("Adicionar"):
+                responsaveis = adicionar_responsavel(responsaveis, nome_responsavel, id_unidade, cargo, telefone)
+                salvar_planilhas(st.session_state['movimentacoes'], st.session_state['produtos'], responsaveis, st.session_state['unidades'], st.session_state['usuarios'])
+                st.success("Responsável adicionado com sucesso!")
+                st.session_state['mostrar_adicionar_responsavel'] = False
+                st.cache_data.clear()  # Limpar o cache
+                st.rerun()  # Recarregar a página
+
+    # Formulário para editar responsável
+    if st.session_state.get('mostrar_editar_responsavel', False):
+        with st.form("form_editar_responsavel"):
+            st.markdown("#### Editar Responsável")
+            nome_antigo = st.selectbox("Selecione o responsável para editar", responsaveis['Nome do Responsável'].unique(), key="nome_antigo_edit")
+            nome_novo = st.text_input("Novo Nome do Responsável", key="nome_novo_edit")
+            id_unidade = st.number_input("Novo ID da Unidade", min_value=1, key="id_unidade_edit")
+            cargo = st.text_input("Novo Cargo", key="cargo_edit")
+            telefone = st.text_input("Novo Telefone", key="telefone_edit")
+            if st.form_submit_button("Editar"):
+                responsaveis = editar_responsavel(responsaveis, nome_antigo, nome_novo, id_unidade, cargo, telefone)
+                salvar_planilhas(st.session_state['movimentacoes'], st.session_state['produtos'], responsaveis, st.session_state['unidades'], st.session_state['usuarios'])
+                st.success("Responsável editado com sucesso!")
+                st.session_state['mostrar_editar_responsavel'] = False
+                st.cache_data.clear()  # Limpar o cache
+                st.rerun()  # Recarregar a página
+
+    # Formulário para excluir responsável
+    if st.session_state.get('mostrar_excluir_responsavel', False):
+        with st.form("form_excluir_responsavel"):
+            st.markdown("#### Excluir Responsável")
+            nome_responsavel = st.selectbox("Selecione o responsável para excluir", responsaveis['Nome do Responsável'].unique(), key="nome_responsavel_excluir")
+            if st.form_submit_button("Excluir"):
+                responsaveis = excluir_responsavel(responsaveis, nome_responsavel)
+                salvar_planilhas(st.session_state['movimentacoes'], st.session_state['produtos'], responsaveis, st.session_state['unidades'], st.session_state['usuarios'])
+                st.success("Responsável excluído com sucesso!")
+                st.session_state['mostrar_excluir_responsavel'] = False
+                st.cache_data.clear()  # Limpar o cache
+                st.rerun()  # Recarregar a página
+
     # Exibir lista de responsáveis
-    st.markdown("### Lista de Responsáveis")
     st.dataframe(
         responsaveis,
         use_container_width=True,
         hide_index=True,
         column_config={
+            "ID Responsavel": "ID",
             "Nome do Responsável": "Responsável",
             "ID Unidade": "Unidade",
             "Cargo": "Cargo",
             "Telefone": "Telefone"
         }
     )
-    
+
+    # Botões para unidades
+    st.markdown("### Unidades")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        if st.button("➕", key="btn_add_unidade"):
+            st.session_state['mostrar_adicionar_unidade'] = True
+            st.session_state['mostrar_editar_unidade'] = False
+            st.session_state['mostrar_excluir_unidade'] = False
+    with col2:
+        if st.button("✏️", key="btn_editar_unidade"):
+            st.session_state['mostrar_adicionar_unidade'] = False
+            st.session_state['mostrar_editar_unidade'] = True
+            st.session_state['mostrar_excluir_unidade'] = False
+    with col3:
+        if st.button("🗑️", key="btn_excluir_unidade"):
+            st.session_state['mostrar_adicionar_unidade'] = False
+            st.session_state['mostrar_editar_unidade'] = False
+            st.session_state['mostrar_excluir_unidade'] = True
+
+    # Formulário para adicionar unidade
+    if st.session_state.get('mostrar_adicionar_unidade', False):
+        with st.form("form_adicionar_unidade"):
+            st.markdown("#### Adicionar Unidade")
+            nome_unidade = st.text_input("Nome da Unidade", key="nome_unidade_add")
+            endereco = st.text_input("Endereço", key="endereco_add")
+            cidade = st.text_input("Cidade", key="cidade_add")
+            estado = st.text_input("Estado", key="estado_add")
+            if st.form_submit_button("Adicionar"):
+                unidades = adicionar_unidade(unidades, nome_unidade, endereco, cidade, estado)
+                salvar_planilhas(st.session_state['movimentacoes'], st.session_state['produtos'], st.session_state['responsaveis'], unidades, st.session_state['usuarios'])
+                st.success("Unidade adicionada com sucesso!")
+                st.session_state['mostrar_adicionar_unidade'] = False
+                st.cache_data.clear()  # Limpar o cache
+                st.rerun()  # Recarregar a página
+
+    # Formulário para editar unidade
+    if st.session_state.get('mostrar_editar_unidade', False):
+        with st.form("form_editar_unidade"):
+            st.markdown("#### Editar Unidade")
+            nome_antigo = st.selectbox("Selecione a unidade para editar", unidades['Nome da Unidade'].unique(), key="nome_antigo_edit_unidade")
+            nome_novo = st.text_input("Novo Nome da Unidade", key="nome_novo_edit_unidade")
+            endereco = st.text_input("Novo Endereço", key="endereco_edit_unidade")
+            cidade = st.text_input("Nova Cidade", key="cidade_edit_unidade")
+            estado = st.text_input("Novo Estado", key="estado_edit_unidade")
+            if st.form_submit_button("Editar"):
+                unidades = editar_unidade(unidades, nome_antigo, nome_novo, endereco, cidade, estado)
+                salvar_planilhas(st.session_state['movimentacoes'], st.session_state['produtos'], st.session_state['responsaveis'], unidades, st.session_state['usuarios'])
+                st.success("Unidade editada com sucesso!")
+                st.session_state['mostrar_editar_unidade'] = False
+                st.cache_data.clear()  # Limpar o cache
+                st.rerun()  # Recarregar a página
+
+    # Formulário para excluir unidade
+    if st.session_state.get('mostrar_excluir_unidade', False):
+        with st.form("form_excluir_unidade"):
+            st.markdown("#### Excluir Unidade")
+            nome_unidade = st.selectbox("Selecione a unidade para excluir", unidades['Nome da Unidade'].unique(), key="nome_unidade_excluir")
+            if st.form_submit_button("Excluir"):
+                unidades = excluir_unidade(unidades, nome_unidade)
+                salvar_planilhas(st.session_state['movimentacoes'], st.session_state['produtos'], st.session_state['responsaveis'], unidades, st.session_state['usuarios'])
+                st.success("Unidade excluída com sucesso!")
+                st.session_state['mostrar_excluir_unidade'] = False
+                st.cache_data.clear()  # Limpar o cache
+                st.rerun()  # Recarregar a página
+
     # Exibir lista de unidades
-    st.markdown("### Lista de Unidades")
     st.dataframe(
         unidades,
         use_container_width=True,
         hide_index=True,
         column_config={
+            "ID Unidade": "ID",
             "Nome da Unidade": "Unidade",
             "Endereço": "Endereço",
             "Cidade": "Cidade",
             "Estado": "Estado"
         }
     )
-    
-    # Botão para voltar à página principal
-    if st.button("Voltar à Página Principal"):
-        st.session_state['pagina'] = 'principal'
 
+    # Botão para voltar à página principal
+    if st.button("Voltar à Página Principal", key="btn_voltar_principal"):
+        st.session_state['pagina'] = 'principal'
 # Função principal
 def main():
     # Carregar planilhas
