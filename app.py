@@ -610,6 +610,13 @@ def pagina_historico(movimentacoes, produtos, responsaveis, unidades):
         how='left'
     )
     
+    # Verificar se as colunas esperadas existem após o merge
+    colunas_esperadas = ['Nome do Produto', 'Nome do Responsável', 'Nome da Unidade', 'Tipo', 'Quantidade', 'Fornecedor', 'Razão', 'Data']
+    colunas_disponiveis = historico_completo.columns.tolist()
+    
+    # Apenas incluir colunas que existem no DataFrame
+    colunas_para_exibir = [col for col in colunas_esperadas if col in colunas_disponiveis]
+    
     # Converter coluna de Data para datetime se não estiver no formato correto
     if not pd.api.types.is_datetime64_any_dtype(historico_completo['Data']):
         historico_completo['Data'] = pd.to_datetime(historico_completo['Data'], errors='coerce')
@@ -663,7 +670,7 @@ def pagina_historico(movimentacoes, produtos, responsaveis, unidades):
     
     # Exibir o histórico de movimentações filtrado
     st.dataframe(
-        historico_filtrado[['Nome do Produto', 'Nome do Responsável', 'Nome da Unidade', 'Tipo', 'Quantidade', 'Fornecedor', 'Razão', 'Data']],
+        historico_filtrado[colunas_para_exibir],
         use_container_width=True,
         hide_index=True,
         column_config={
@@ -682,7 +689,7 @@ def pagina_historico(movimentacoes, produtos, responsaveis, unidades):
     if st.button("Voltar à Página Principal"):
         st.session_state['pagina'] = 'principal'
 
-# Página de Responsáveis e Unidades
+        
 def pagina_responsaveis_unidades(responsaveis, unidades):
     st.title("📋 Responsáveis e Unidades")
     menu()  # Adicionar o menu aqui
