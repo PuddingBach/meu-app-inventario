@@ -462,9 +462,60 @@ def pagina_historico(movimentacoes, produtos, responsaveis, unidades):
         how='left'
     )
     
-    # Exibir o histórico de movimentações
+    # Converter coluna de Data para datetime se não estiver no formato correto
+    if not pd.api.types.is_datetime64_any_dtype(historico_completo['Data']):
+        historico_completo['Data'] = pd.to_datetime(historico_completo['Data'], errors='coerce')
+    
+    # Filtros
+    st.subheader("Filtros")
+    
+    # Filtro por Unidade - Corrigindo o erro de tipos mistos
+    unidades_disponiveis = ['Todas'] + sorted(
+        historico_completo['Nome da Unidade'].astype(str).unique().tolist(),
+        key=lambda x: x.lower()  # Ordena case-insensitive
+    )
+    
+    unidade_selecionada = st.selectbox(
+        "Selecione a Unidade:",
+        unidades_disponiveis,
+        index=0
+    )
+    
+    # Filtro por Período
+    col1, col2 = st.columns(2)
+    with col1:
+        data_inicio = st.date_input(
+            "Data de início:",
+            value=historico_completo['Data'].min().date(),
+            min_value=historico_completo['Data'].min().date(),
+            max_value=historico_completo['Data'].max().date()
+        )
+    with col2:
+        data_fim = st.date_input(
+            "Data de fim:",
+            value=historico_completo['Data'].max().date(),
+            min_value=historico_completo['Data'].min().date(),
+            max_value=historico_completo['Data'].max().date()
+        )
+    
+    # Aplicar filtros
+    historico_filtrado = historico_completo.copy()
+    
+    # Filtrar por unidade
+    if unidade_selecionada != 'Todas':
+        historico_filtrado = historico_filtrado[
+            historico_filtrado['Nome da Unidade'].astype(str) == unidade_selecionada
+        ]
+    
+    # Filtrar por período
+    historico_filtrado = historico_filtrado[
+        (historico_filtrado['Data'].dt.date >= data_inicio) & 
+        (historico_filtrado['Data'].dt.date <= data_fim)
+    ]
+    
+    # Exibir o histórico de movimentações filtrado
     st.dataframe(
-        historico_completo[['Nome do Produto', 'Nome do Responsável', 'Nome da Unidade', 'Tipo', 'Quantidade', 'Fornecedor', 'Razão', 'Data']],
+        historico_filtrado[['Nome do Produto', 'Nome do Responsável', 'Nome da Unidade', 'Tipo', 'Quantidade', 'Fornecedor', 'Razão', 'Data']],
         use_container_width=True,
         hide_index=True,
         column_config={
