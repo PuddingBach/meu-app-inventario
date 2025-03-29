@@ -536,7 +536,7 @@ def pagina_historico(movimentacoes, produtos, responsaveis, unidades):
 
 # Página de Responsáveis e Unidades
 def pagina_responsaveis_unidades(responsaveis, unidades):
-    st.title("Responsáveis e Unidades")
+    st.title("📋 Responsáveis e Unidades")
     menu()  # Adicionar o menu aqui
 
     # Função para gerar o próximo ID disponível
@@ -548,7 +548,7 @@ def pagina_responsaveis_unidades(responsaveis, unidades):
 
     # Função para adicionar responsável
     def adicionar_responsavel(responsaveis, nome_responsavel, id_unidade, cargo, telefone):
-        novo_id = proximo_id(responsaveis, 'ID Responsavel')  # Gera o próximo ID
+        novo_id = proximo_id(responsaveis, 'ID Responsavel')
         novo_responsavel = {
             'ID Responsavel': novo_id,
             'Nome do Responsável': nome_responsavel,
@@ -556,25 +556,24 @@ def pagina_responsaveis_unidades(responsaveis, unidades):
             'Cargo': cargo,
             'Telefone': telefone
         }
-        responsaveis = pd.concat([responsaveis, pd.DataFrame([novo_responsavel])], ignore_index=True)
-        return responsaveis
+        return pd.concat([responsaveis, pd.DataFrame([novo_responsavel])], ignore_index=True)
 
     # Função para editar responsável
     def editar_responsavel(responsaveis, nome_antigo, nome_novo, id_unidade, cargo, telefone):
-        responsaveis.loc[responsaveis['Nome do Responsável'] == nome_antigo, 'Nome do Responsável'] = nome_novo
-        responsaveis.loc[responsaveis['Nome do Responsável'] == nome_novo, 'ID Unidade'] = id_unidade
-        responsaveis.loc[responsaveis['Nome do Responsável'] == nome_novo, 'Cargo'] = cargo
-        responsaveis.loc[responsaveis['Nome do Responsável'] == nome_novo, 'Telefone'] = telefone
+        mask = responsaveis['Nome do Responsável'] == nome_antigo
+        responsaveis.loc[mask, 'Nome do Responsável'] = nome_novo
+        responsaveis.loc[mask, 'ID Unidade'] = id_unidade
+        responsaveis.loc[mask, 'Cargo'] = cargo
+        responsaveis.loc[mask, 'Telefone'] = telefone
         return responsaveis
 
     # Função para excluir responsável
     def excluir_responsavel(responsaveis, nome_responsavel):
-        responsaveis = responsaveis[responsaveis['Nome do Responsável'] != nome_responsavel]
-        return responsaveis
+        return responsaveis[responsaveis['Nome do Responsável'] != nome_responsavel]
 
     # Função para adicionar unidade
     def adicionar_unidade(unidades, nome_unidade, endereco, cidade, estado):
-        novo_id = proximo_id(unidades, 'ID Unidade')  # Gera o próximo ID
+        novo_id = proximo_id(unidades, 'ID Unidade')
         nova_unidade = {
             'ID Unidade': novo_id,
             'Nome da Unidade': nome_unidade,
@@ -582,173 +581,216 @@ def pagina_responsaveis_unidades(responsaveis, unidades):
             'Cidade': cidade,
             'Estado': estado
         }
-        unidades = pd.concat([unidades, pd.DataFrame([nova_unidade])], ignore_index=True)
-        return unidades
+        return pd.concat([unidades, pd.DataFrame([nova_unidade])], ignore_index=True)
 
     # Função para editar unidade
     def editar_unidade(unidades, nome_antigo, nome_novo, endereco, cidade, estado):
-        unidades.loc[unidades['Nome da Unidade'] == nome_antigo, 'Nome da Unidade'] = nome_novo
-        unidades.loc[unidades['Nome da Unidade'] == nome_novo, 'Endereço'] = endereco
-        unidades.loc[unidades['Nome da Unidade'] == nome_novo, 'Cidade'] = cidade
-        unidades.loc[unidades['Nome da Unidade'] == nome_novo, 'Estado'] = estado
+        mask = unidades['Nome da Unidade'] == nome_antigo
+        unidades.loc[mask, 'Nome da Unidade'] = nome_novo
+        unidades.loc[mask, 'Endereço'] = endereco
+        unidades.loc[mask, 'Cidade'] = cidade
+        unidades.loc[mask, 'Estado'] = estado
         return unidades
 
     # Função para excluir unidade
     def excluir_unidade(unidades, nome_unidade):
-        unidades = unidades[unidades['Nome da Unidade'] != nome_unidade]
-        return unidades
+        return unidades[unidades['Nome da Unidade'] != nome_unidade]
 
-    # Botões para responsáveis
-    st.markdown("### Responsáveis")
+    # --- SEÇÃO DE RESPONSÁVEIS ---
+    st.markdown("## 👥 Responsáveis")
+    
+    # Botões de ação
     col1, col2, col3 = st.columns(3)
     with col1:
-        if st.button("➕", key="btn_add_responsavel"):
+        if st.button("➕ Adicionar Responsável", key="btn_add_resp_rpu"):
             st.session_state['mostrar_adicionar_responsavel'] = True
             st.session_state['mostrar_editar_responsavel'] = False
             st.session_state['mostrar_excluir_responsavel'] = False
     with col2:
-        if st.button("✏️", key="btn_editar_responsavel"):
+        if st.button("✏️ Editar Responsável", key="btn_edit_resp_rpu"):
             st.session_state['mostrar_adicionar_responsavel'] = False
             st.session_state['mostrar_editar_responsavel'] = True
             st.session_state['mostrar_excluir_responsavel'] = False
     with col3:
-        if st.button("🗑️", key="btn_excluir_responsavel"):
+        if st.button("🗑️ Excluir Responsável", key="btn_del_resp_rpu"):
             st.session_state['mostrar_adicionar_responsavel'] = False
             st.session_state['mostrar_editar_responsavel'] = False
             st.session_state['mostrar_excluir_responsavel'] = True
 
-    # Formulário para adicionar responsável
+    # Formulário de adição
     if st.session_state.get('mostrar_adicionar_responsavel', False):
-        with st.form("form_adicionar_responsavel"):
-            st.markdown("#### Adicionar Responsável")
-            nome_responsavel = st.text_input("Nome do Responsável", key="nome_responsavel_add")
-            id_unidade = st.number_input("ID da Unidade", min_value=1, key="id_unidade_add")
-            cargo = st.text_input("Cargo", key="cargo_add")
-            telefone = st.text_input("Telefone", key="telefone_add")
-            if st.form_submit_button("Adicionar"):
-                responsaveis = adicionar_responsavel(responsaveis, nome_responsavel, id_unidade, cargo, telefone)
-                salvar_planilhas(st.session_state['movimentacoes'], st.session_state['produtos'], responsaveis, st.session_state['unidades'], st.session_state['usuarios'])
-                st.success("Responsável adicionado com sucesso!")
-                st.session_state['mostrar_adicionar_responsavel'] = False
-                st.cache_data.clear()  # Limpar o cache
-                st.rerun()  # Recarregar a página
+        with st.form("form_add_resp_rpu"):
+            st.markdown("### Adicionar Novo Responsável")
+            nome = st.text_input("Nome Completo", key="nome_resp_add_rpu")
+            id_unidade = st.number_input("ID Unidade", min_value=1, key="id_unid_resp_add_rpu")
+            cargo = st.text_input("Cargo", key="cargo_resp_add_rpu")
+            telefone = st.text_input("Telefone", key="tel_resp_add_rpu")
+            
+            if st.form_submit_button("💾 Salvar Responsável"):
+                try:
+                    responsaveis = adicionar_responsavel(responsaveis, nome, id_unidade, cargo, telefone)
+                    st.session_state['responsaveis'] = responsaveis
+                    salvar_planilhas(st.session_state['movimentacoes'], st.session_state['produtos'], 
+                                    responsaveis, st.session_state['unidades'], st.session_state['usuarios'])
+                    st.success("✅ Responsável adicionado com sucesso!")
+                    st.session_state['mostrar_adicionar_responsavel'] = False
+                    st.cache_data.clear()
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Erro: {str(e)}")
 
-    # Formulário para editar responsável
+    # Formulário de edição
     if st.session_state.get('mostrar_editar_responsavel', False):
-        with st.form("form_editar_responsavel"):
-            st.markdown("#### Editar Responsável")
-            nome_antigo = st.selectbox("Selecione o responsável para editar", responsaveis['Nome do Responsável'].unique(), key="nome_antigo_edit")
-            nome_novo = st.text_input("Novo Nome do Responsável", key="nome_novo_edit")
-            id_unidade = st.number_input("Novo ID da Unidade", min_value=1, key="id_unidade_edit")
-            cargo = st.text_input("Novo Cargo", key="cargo_edit")
-            telefone = st.text_input("Novo Telefone", key="telefone_edit")
-            if st.form_submit_button("Editar"):
-                responsaveis = editar_responsavel(responsaveis, nome_antigo, nome_novo, id_unidade, cargo, telefone)
-                salvar_planilhas(st.session_state['movimentacoes'], st.session_state['produtos'], responsaveis, st.session_state['unidades'], st.session_state['usuarios'])
-                st.success("Responsável editado com sucesso!")
-                st.session_state['mostrar_editar_responsavel'] = False
-                st.cache_data.clear()  # Limpar o cache
-                st.rerun()  # Recarregar a página
+        with st.form("form_edit_resp_rpu"):
+            st.markdown("### Editar Responsável")
+            nome_antigo = st.selectbox("Selecione o responsável", responsaveis['Nome do Responsável'].unique(), 
+                                      key="select_edit_resp_rpu")
+            novo_nome = st.text_input("Novo Nome", key="novo_nome_resp_rpu")
+            id_unidade = st.number_input("ID Unidade", min_value=1, key="id_unid_edit_resp_rpu")
+            cargo = st.text_input("Cargo", key="cargo_edit_resp_rpu")
+            telefone = st.text_input("Telefone", key="tel_edit_resp_rpu")
+            
+            if st.form_submit_button("💾 Salvar Alterações"):
+                try:
+                    responsaveis = editar_responsavel(responsaveis, nome_antigo, novo_nome, id_unidade, cargo, telefone)
+                    st.session_state['responsaveis'] = responsaveis
+                    salvar_planilhas(st.session_state['movimentacoes'], st.session_state['produtos'], 
+                                    responsaveis, st.session_state['unidades'], st.session_state['usuarios'])
+                    st.success("✅ Responsável atualizado com sucesso!")
+                    st.session_state['mostrar_editar_responsavel'] = False
+                    st.cache_data.clear()
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Erro: {str(e)}")
 
-    # Formulário para excluir responsável
+    # Formulário de exclusão
     if st.session_state.get('mostrar_excluir_responsavel', False):
-        with st.form("form_excluir_responsavel"):
-            st.markdown("#### Excluir Responsável")
-            nome_responsavel = st.selectbox("Selecione o responsável para excluir", responsaveis['Nome do Responsável'].unique(), key="nome_responsavel_excluir")
-            if st.form_submit_button("Excluir"):
-                responsaveis = excluir_responsavel(responsaveis, nome_responsavel)
-                salvar_planilhas(st.session_state['movimentacoes'], st.session_state['produtos'], responsaveis, st.session_state['unidades'], st.session_state['usuarios'])
-                st.success("Responsável excluído com sucesso!")
-                st.session_state['mostrar_excluir_responsavel'] = False
-                st.cache_data.clear()  # Limpar o cache
-                st.rerun()  # Recarregar a página
+        with st.form("form_del_resp_rpu"):
+            st.markdown("### Excluir Responsável")
+            nome = st.selectbox("Selecione o responsável", responsaveis['Nome do Responsável'].unique(), 
+                              key="select_del_resp_rpu")
+            
+            if st.form_submit_button("❌ Confirmar Exclusão"):
+                try:
+                    responsaveis = excluir_responsavel(responsaveis, nome)
+                    st.session_state['responsaveis'] = responsaveis
+                    salvar_planilhas(st.session_state['movimentacoes'], st.session_state['produtos'], 
+                                    responsaveis, st.session_state['unidades'], st.session_state['usuarios'])
+                    st.success("✅ Responsável removido com sucesso!")
+                    st.session_state['mostrar_excluir_responsavel'] = False
+                    st.cache_data.clear()
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Erro: {str(e)}")
 
-    # Exibir lista de responsáveis
+    # Tabela de responsáveis
     st.dataframe(
         responsaveis,
         use_container_width=True,
         hide_index=True,
         column_config={
-            "ID Responsavel": "ID",
+            "ID Responsavel": st.column_config.NumberColumn("ID"),
             "Nome do Responsável": "Responsável",
-            "ID Unidade": "Unidade",
+            "ID Unidade": st.column_config.NumberColumn("Unidade"),
             "Cargo": "Cargo",
             "Telefone": "Telefone"
         }
     )
 
-    # Botões para unidades
-    st.markdown("### Unidades")
+    # --- SEÇÃO DE UNIDADES ---
+    st.markdown("## 🏢 Unidades")
+    
+    # Botões de ação
     col1, col2, col3 = st.columns(3)
     with col1:
-        if st.button("➕", key="btn_add_unidade"):
+        if st.button("➕ Adicionar Unidade", key="btn_add_unid_rpu"):
             st.session_state['mostrar_adicionar_unidade'] = True
             st.session_state['mostrar_editar_unidade'] = False
             st.session_state['mostrar_excluir_unidade'] = False
     with col2:
-        if st.button("✏️", key="btn_editar_unidade"):
+        if st.button("✏️ Editar Unidade", key="btn_edit_unid_rpu"):
             st.session_state['mostrar_adicionar_unidade'] = False
             st.session_state['mostrar_editar_unidade'] = True
             st.session_state['mostrar_excluir_unidade'] = False
     with col3:
-        if st.button("🗑️", key="btn_excluir_unidade"):
+        if st.button("🗑️ Excluir Unidade", key="btn_del_unid_rpu"):
             st.session_state['mostrar_adicionar_unidade'] = False
             st.session_state['mostrar_editar_unidade'] = False
             st.session_state['mostrar_excluir_unidade'] = True
 
-    # Formulário para adicionar unidade
+    # Formulário de adição
     if st.session_state.get('mostrar_adicionar_unidade', False):
-        with st.form("form_adicionar_unidade"):
-            st.markdown("#### Adicionar Unidade")
-            nome_unidade = st.text_input("Nome da Unidade", key="nome_unidade_add")
-            endereco = st.text_input("Endereço", key="endereco_add")
-            cidade = st.text_input("Cidade", key="cidade_add")
-            estado = st.text_input("Estado", key="estado_add")
-            if st.form_submit_button("Adicionar"):
-                unidades = adicionar_unidade(unidades, nome_unidade, endereco, cidade, estado)
-                salvar_planilhas(st.session_state['movimentacoes'], st.session_state['produtos'], st.session_state['responsaveis'], unidades, st.session_state['usuarios'])
-                st.success("Unidade adicionada com sucesso!")
-                st.session_state['mostrar_adicionar_unidade'] = False
-                st.cache_data.clear()  # Limpar o cache
-                st.rerun()  # Recarregar a página
+        with st.form("form_add_unid_rpu"):
+            st.markdown("### Adicionar Nova Unidade")
+            nome = st.text_input("Nome da Unidade", key="nome_unid_add_rpu")
+            endereco = st.text_input("Endereço", key="end_unid_add_rpu")
+            cidade = st.text_input("Cidade", key="cid_unid_add_rpu")
+            estado = st.text_input("Estado", key="est_unid_add_rpu")
+            
+            if st.form_submit_button("💾 Salvar Unidade"):
+                try:
+                    unidades = adicionar_unidade(unidades, nome, endereco, cidade, estado)
+                    st.session_state['unidades'] = unidades
+                    salvar_planilhas(st.session_state['movimentacoes'], st.session_state['produtos'], 
+                                   st.session_state['responsaveis'], unidades, st.session_state['usuarios'])
+                    st.success("✅ Unidade adicionada com sucesso!")
+                    st.session_state['mostrar_adicionar_unidade'] = False
+                    st.cache_data.clear()
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Erro: {str(e)}")
 
-    # Formulário para editar unidade
+    # Formulário de edição
     if st.session_state.get('mostrar_editar_unidade', False):
-        with st.form("form_editar_unidade"):
-            st.markdown("#### Editar Unidade")
-            nome_antigo = st.selectbox("Selecione a unidade para editar", unidades['Nome da Unidade'].unique(), key="nome_antigo_edit_unidade")
-            nome_novo = st.text_input("Novo Nome da Unidade", key="nome_novo_edit_unidade")
-            endereco = st.text_input("Novo Endereço", key="endereco_edit_unidade")
-            cidade = st.text_input("Nova Cidade", key="cidade_edit_unidade")
-            estado = st.text_input("Novo Estado", key="estado_edit_unidade")
-            if st.form_submit_button("Editar"):
-                unidades = editar_unidade(unidades, nome_antigo, nome_novo, endereco, cidade, estado)
-                salvar_planilhas(st.session_state['movimentacoes'], st.session_state['produtos'], st.session_state['responsaveis'], unidades, st.session_state['usuarios'])
-                st.success("Unidade editada com sucesso!")
-                st.session_state['mostrar_editar_unidade'] = False
-                st.cache_data.clear()  # Limpar o cache
-                st.rerun()  # Recarregar a página
+        with st.form("form_edit_unid_rpu"):
+            st.markdown("### Editar Unidade")
+            nome_antigo = st.selectbox("Selecione a unidade", unidades['Nome da Unidade'].unique(), 
+                                     key="select_edit_unid_rpu")
+            novo_nome = st.text_input("Novo Nome", key="novo_nome_unid_rpu")
+            endereco = st.text_input("Endereço", key="end_edit_unid_rpu")
+            cidade = st.text_input("Cidade", key="cid_edit_unid_rpu")
+            estado = st.text_input("Estado", key="est_edit_unid_rpu")
+            
+            if st.form_submit_button("💾 Salvar Alterações"):
+                try:
+                    unidades = editar_unidade(unidades, nome_antigo, novo_nome, endereco, cidade, estado)
+                    st.session_state['unidades'] = unidades
+                    salvar_planilhas(st.session_state['movimentacoes'], st.session_state['produtos'], 
+                                   st.session_state['responsaveis'], unidades, st.session_state['usuarios'])
+                    st.success("✅ Unidade atualizada com sucesso!")
+                    st.session_state['mostrar_editar_unidade'] = False
+                    st.cache_data.clear()
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Erro: {str(e)}")
 
-    # Formulário para excluir unidade
+    # Formulário de exclusão
     if st.session_state.get('mostrar_excluir_unidade', False):
-        with st.form("form_excluir_unidade"):
-            st.markdown("#### Excluir Unidade")
-            nome_unidade = st.selectbox("Selecione a unidade para excluir", unidades['Nome da Unidade'].unique(), key="nome_unidade_excluir")
-            if st.form_submit_button("Excluir"):
-                unidades = excluir_unidade(unidades, nome_unidade)
-                salvar_planilhas(st.session_state['movimentacoes'], st.session_state['produtos'], st.session_state['responsaveis'], unidades, st.session_state['usuarios'])
-                st.success("Unidade excluída com sucesso!")
-                st.session_state['mostrar_excluir_unidade'] = False
-                st.cache_data.clear()  # Limpar o cache
-                st.rerun()  # Recarregar a página
+        with st.form("form_del_unid_rpu"):
+            st.markdown("### Excluir Unidade")
+            nome = st.selectbox("Selecione a unidade", unidades['Nome da Unidade'].unique(), 
+                              key="select_del_unid_rpu")
+            
+            if st.form_submit_button("❌ Confirmar Exclusão"):
+                try:
+                    unidades = excluir_unidade(unidades, nome)
+                    st.session_state['unidades'] = unidades
+                    salvar_planilhas(st.session_state['movimentacoes'], st.session_state['produtos'], 
+                                   st.session_state['responsaveis'], unidades, st.session_state['usuarios'])
+                    st.success("✅ Unidade removida com sucesso!")
+                    st.session_state['mostrar_excluir_unidade'] = False
+                    st.cache_data.clear()
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Erro: {str(e)}")
 
-    # Exibir lista de unidades
+    # Tabela de unidades
     st.dataframe(
         unidades,
         use_container_width=True,
         hide_index=True,
         column_config={
-            "ID Unidade": "ID",
+            "ID Unidade": st.column_config.NumberColumn("ID"),
             "Nome da Unidade": "Unidade",
             "Endereço": "Endereço",
             "Cidade": "Cidade",
@@ -756,8 +798,8 @@ def pagina_responsaveis_unidades(responsaveis, unidades):
         }
     )
 
-    # Botão para voltar à página principal
-    if st.button("Voltar à Página Principal", key="btn_voltar_principal"):
+    # Botão de voltar
+    if st.button("← Voltar à Página Principal", key="btn_voltar_principal_rpu"):
         st.session_state['pagina'] = 'principal'
 # Função principal
 def main():
