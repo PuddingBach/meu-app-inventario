@@ -361,82 +361,176 @@ def pagina_movimentacao(movimentacoes, produtos, responsaveis, unidades):
 
 # Página para Editar
 def pagina_editar(movimentacoes, produtos, responsaveis, unidades):
-    st.title("Editar")
+    st.title("Editar Cadastro de Produtos")
     menu()  # Adicionar o menu aqui
 
     # Selecionar a ação (Adicionar, Editar, Excluir)
-    acao = st.radio("Selecione a ação:", ["Adicionar", "Editar", "Excluir"])
+    acao = st.radio("Selecione a ação:", ["Adicionar", "Editar", "Excluir"], horizontal=True)
 
     if acao == "Adicionar":
-        with st.form("form_adicionar"):
-            st.markdown("### Adicionar Novo Item")
-            id_produto = st.number_input("ID do Produto", min_value=1, step=1)
-            nome_produto = st.text_input("Nome do Produto")
-            quantidade_estoque = st.number_input("Quantidade em Estoque", min_value=0)
-            unidade_medida = st.text_input("Unidade de Medida")
-            categoria = st.text_input("Categoria")
-
-            if st.form_submit_button("Adicionar"):
-                if id_produto in produtos['ID Produto'].values:
-                    st.error("Erro: ID já existente.")
+        with st.form("form_adicionar", clear_on_submit=True):
+            st.markdown("### Adicionar Novo Produto")
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                id_produto = st.number_input("ID do Produto*", min_value=1, step=1, 
+                                          help="Número único que identifica o produto")
+                nome_produto = st.text_input("Nome do Produto*", 
+                                          help="Nome descritivo do produto")
+                quantidade_estoque = st.number_input("Quantidade em Estoque*", min_value=0, 
+                                                  help="Quantidade atual em estoque")
+            
+            with col2:
+                # Verifica se a coluna 'Unidade' existe no DataFrame unidades
+                if 'Unidade' in unidades.columns:
+                    unidade_opcoes = unidades['Unidade'].unique()
                 else:
-                    produtos = adicionar_produto(produtos, nome_produto, id_produto, quantidade_estoque, unidade_medida, categoria)
+                    unidade_opcoes = ["un", "kg", "g", "l", "ml"]  # Valores padrão
+                    st.warning("Unidades de medida não encontradas. Usando valores padrão.")
+                
+                unidade_medida = st.selectbox("Unidade de Medida*", unidade_opcoes, 
+                                            help="Unidade de medida do produto")
+                categoria = st.text_input("Categoria", 
+                                       help="Categoria do produto (opcional)")
+            
+            st.markdown("*Campos obrigatórios")
+            
+            # Botão de submit explícito
+            submitted = st.form_submit_button("Adicionar Produto")
+            if submitted:
+                if id_produto in produtos['ID Produto'].values:
+                    st.error("Erro: ID do produto já existe. Por favor, use um ID diferente.")
+                elif nome_produto.strip() == "":
+                    st.error("Erro: O nome do produto é obrigatório.")
+                else:
+                    # Adicionar o novo produto
+                    novo_produto = {
+                        'ID Produto': id_produto,
+                        'Nome do Produto': nome_produto,
+                        'Quantidade em Estoque': quantidade_estoque,
+                        'Unidade de Medida': unidade_medida,
+                        'Categoria': categoria
+                    }
+                    
+                    produtos = pd.concat([produtos, pd.DataFrame([novo_produto])], ignore_index=True)
                     salvar_planilhas(movimentacoes, produtos, responsaveis, unidades, st.session_state['usuarios'])
+                    
                     st.success("Produto adicionado com sucesso!")
-                    time.sleep(1)  # Delay de 1 segundo
-                    st.cache_data.clear()  # Limpar o cache
-                    st.rerun()  # Recarregar a página
+                    time.sleep(1.5)
+                    st.cache_data.clear()
+                    st.rerun()
 
     elif acao == "Editar":
-        with st.form("form_editar"):
-            st.markdown("### Editar Item Existente")
+        with st.form("form_editar", clear_on_submit=True):
+            st.markdown("### Editar Produto Existente")
+            
             # Selecionar o produto a ser editado
-            produto_selecionado = st.selectbox("Selecione o produto para editar", produtos['Nome do Produto'].unique())
+            produto_selecionado = st.selectbox("Selecione o produto para editar*", 
+                                            produtos['Nome do Produto'].unique(),
+                                            help="Selecione o produto que deseja editar")
             
             # Obter os dados atuais do produto selecionado
             produto_info = produtos[produtos['Nome do Produto'] == produto_selecionado].iloc[0]
             
-            # Preencher os campos com as informações atuais
-            id_produto = st.number_input("ID do Produto", value=int(produto_info['ID Produto']), disabled=True)
-            nome_produto = st.text_input("Nome do Produto", value=produto_info['Nome do Produto'])
-            quantidade_estoque = st.number_input("Quantidade em Estoque", value=int(produto_info['Quantidade em Estoque']))
-            unidade_medida = st.text_input("Unidade de Medida", value=produto_info['Unidade de Medida'])
-            categoria = st.text_input("Categoria", value=produto_info['Categoria'])
-
-            if st.form_submit_button("Editar"):
-                produtos = editar_produto(produtos, id_produto, nome_produto, quantidade_estoque, unidade_medida, categoria)
-                salvar_planilhas(movimentacoes, produtos, responsaveis, unidades, st.session_state['usuarios'])
-                st.success("Produto editado com sucesso!")
-                time.sleep(1)  # Delay de 1 segundo
-                st.cache_data.clear()  # Limpar o cache
-                st.rerun()  # Recarregar a página
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # Mostrar ID (não editável)
+                st.text_input("ID do Produto (não editável)", value=produto_info['ID Produto'], disabled=True)
+                
+                # Campos editáveis
+                novo_nome = st.text_input("Nome do Produto*", value=produto_info['Nome do Produto'],
+                                       help="Novo nome para o produto")
+                nova_quantidade = st.number_input("Quantidade em Estoque*", 
+                                               value=int(produto_info['Quantidade em Estoque']),
+                                               min_value=0,
+                                               help="Nova quantidade em estoque")
+            
+            with col2:
+                # Verifica se a coluna 'Unidade' existe no DataFrame unidades
+                if 'Unidade' in unidades.columns:
+                    unidade_opcoes = unidades['Unidade'].unique()
+                    try:
+                        unidade_index = list(unidade_opcoes).index(produto_info['Unidade de Medida'])
+                    except ValueError:
+                        unidade_index = 0
+                else:
+                    unidade_opcoes = ["un", "kg", "g", "l", "ml"]
+                    unidade_index = 0
+                    st.warning("Unidades de medida não encontradas. Usando valores padrão.")
+                
+                nova_unidade = st.selectbox("Unidade de Medida*", 
+                                         unidade_opcoes,
+                                         index=unidade_index,
+                                         help="Nova unidade de medida")
+                nova_categoria = st.text_input("Categoria", 
+                                            value=produto_info['Categoria'],
+                                            help="Nova categoria (opcional)")
+            
+            st.markdown("*Campos obrigatórios")
+            
+            # Botão de submit explícito
+            submitted = st.form_submit_button("Salvar Alterações")
+            if submitted:
+                if novo_nome.strip() == "":
+                    st.error("Erro: O nome do produto é obrigatório.")
+                else:
+                    # Atualizar os dados do produto
+                    produtos.loc[produtos['ID Produto'] == produto_info['ID Produto'], 'Nome do Produto'] = novo_nome
+                    produtos.loc[produtos['ID Produto'] == produto_info['ID Produto'], 'Quantidade em Estoque'] = nova_quantidade
+                    produtos.loc[produtos['ID Produto'] == produto_info['ID Produto'], 'Unidade de Medida'] = nova_unidade
+                    produtos.loc[produtos['ID Produto'] == produto_info['ID Produto'], 'Categoria'] = nova_categoria
+                    
+                    salvar_planilhas(movimentacoes, produtos, responsaveis, unidades, st.session_state['usuarios'])
+                    
+                    st.success("Produto atualizado com sucesso!")
+                    time.sleep(1.5)
+                    st.cache_data.clear()
+                    st.rerun()
 
     elif acao == "Excluir":
-        with st.form("form_excluir"):
-            st.markdown("### Excluir Item Existente")
-            # Selecionar o produto a ser excluído
-            produto_selecionado = st.selectbox("Selecione o produto para excluir", produtos['Nome do Produto'].unique())
+        with st.form("form_excluir", clear_on_submit=True):
+            st.markdown("### Excluir Produto")
             
-            # Exibir as informações do produto selecionado
+            # Selecionar o produto a ser excluído
+            produto_selecionado = st.selectbox("Selecione o produto para excluir*", 
+                                             produtos['Nome do Produto'].unique(),
+                                             help="Selecione o produto que deseja excluir")
+            
+            # Obter informações do produto
             produto_info = produtos[produtos['Nome do Produto'] == produto_selecionado].iloc[0]
-            st.write(f"**ID do Produto:** {produto_info['ID Produto']}")
-            st.write(f"**Nome do Produto:** {produto_info['Nome do Produto']}")
-            st.write(f"**Quantidade em Estoque:** {produto_info['Quantidade em Estoque']}")
-            st.write(f"**Unidade de Medida:** {produto_info['Unidade de Medida']}")
-            st.write(f"**Categoria:** {produto_info['Categoria']}")
-
-            if st.form_submit_button("Excluir"):
-                produtos = excluir_produto(produtos, produto_info['ID Produto'])
-                salvar_planilhas(movimentacoes, produtos, responsaveis, unidades, st.session_state['usuarios'])
-                st.success("Produto excluído com sucesso!")
-                time.sleep(1)  # Delay de 1 segundo
-                st.cache_data.clear()  # Limpar o cache
-                st.rerun()  # Recarregar a página
+            
+            # Exibir confirmação
+            st.warning("Você está prestes a excluir o seguinte produto:")
+            st.write(f"**ID:** {produto_info['ID Produto']}")
+            st.write(f"**Nome:** {produto_info['Nome do Produto']}")
+            st.write(f"**Estoque atual:** {produto_info['Quantidade em Estoque']} {produto_info['Unidade de Medida']}")
+            
+            confirmacao = st.checkbox("Confirmo que desejo excluir este produto permanentemente")
+            
+            # Botão de submit explícito
+            submitted = st.form_submit_button("Excluir Produto")
+            if submitted and confirmacao:
+                # Verificar se há movimentações associadas ao produto
+                movimentacoes_produto = movimentacoes[movimentacoes['ID Produto'] == produto_info['ID Produto']]
+                
+                if not movimentacoes_produto.empty:
+                    st.error("Este produto possui movimentações associadas e não pode ser excluído.")
+                else:
+                    # Remover o produto
+                    produtos = produtos[produtos['ID Produto'] != produto_info['ID Produto']]
+                    salvar_planilhas(movimentacoes, produtos, responsaveis, unidades, st.session_state['usuarios'])
+                    
+                    st.success("Produto excluído com sucesso!")
+                    time.sleep(1.5)
+                    st.cache_data.clear()
+                    st.rerun()
+            elif submitted and not confirmacao:
+                st.error("Por favor, marque a caixa de confirmação para excluir o produto.")
 
     # Botão para voltar à página principal
-    if st.button("Voltar à Página Principal"):
+    if st.button("⏎ Voltar à Página Principal"):
         st.session_state['pagina'] = 'principal'
-
 # Página de Histórico
 def pagina_historico(movimentacoes, produtos, responsaveis, unidades):
     st.title("Histórico de Movimentações")
