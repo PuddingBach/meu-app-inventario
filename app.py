@@ -75,52 +75,131 @@ def carregar_dados():
     }
 
 def salvar_dados(dataframes):
+    """
+    Salva os dataframes no arquivo Excel no GitHub
+    
+    Args:
+        dataframes (dict): Dicionário com os DataFrames a serem salvos
+            Formato: {'nome_planilha': dataframe}
+    
+    Returns:
+        bool: True se salvou com sucesso, False caso contrário
+    """
     try:
-        # Primeiro, obter o SHA do arquivo atual
+        # 1. Obter informações do arquivo atual
         response = requests.get(GITHUB_API_URL, headers=headers)
         
+        # Verificação robusta da resposta
         if response.status_code != 200:
-            st.error(f"Erro ao obter SHA do arquivo: {response.status_code} - {response.text}")
+            error_msg = response.json().get('message', 'Sem mensagem de erro')
+            st.error(f"Erro ao obter arquivo (HTTP {response.status_code}): {error_msg}")
             return False
         
         file_info = response.json()
         sha = file_info.get("sha")
         
         if not sha:
-            st.error("Não foi possível obter a SHA do arquivo.")
+            st.error("SHA do arquivo não encontrado na resposta")
             return False
         
-        # Criar um arquivo Excel em memória
+        # 2. Criar arquivo Excel em memória
         output = BytesIO()
-        with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            for sheet_name, df in dataframes.items():
-                df.to_excel(writer, sheet_name=sheet_name, index=False)
         
-        # Obter os bytes do arquivo Excel
+        try:
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                for sheet_name, df in dataframes.items():
+                    # Verifica se o DataFrame está vazio
+                    if df.empty:
+                        st.warning(f"A planilha '{sheet_name}' está vazia")
+                    
+                    # Remove índices e salva
+                    df.to_excel(writer, sheet_name=sheet_name, index=False)
+        except Exception as e:
+            st.error(f"Erro ao criar arquivo Excel: {str(e)}")
+            return False
+        
+        # 3. Preparar dados para envio
         excel_data = output.getvalue()
         
-        # Codificar o conteúdo em base64
-        content = base64.b64encode(excel_data).decode("utf-8")
+        try:
+            content = base64.b64encode(excel_data).decode("utf-8")
+        except Exception as e:
+            st.error(f"Erro ao codificar dados: {str(e)}")
+            return False
         
-        # Preparar os dados para envio
         payload = {
-            "message": "Atualização via Streamlit App",
+            "message": f"Atualização via Streamlit App - {datetime.now().strftime('%Y-%m-%d %H:%M')}",
             "content": content,
             "sha": sha
         }
         
-        # Enviar a atualização
-        update_response = requests.put(GITHUB_API_URL, headers=headers, json=payload)
-        
-        if update_response.status_code == 200:
-            st.success("Dados salvos com sucesso no GitHub!")
-            return True
-        else:
-            st.error(f"Erro ao salvar dados: {update_response.status_code} - {update_response.text}")
+        # 4. Enviar atualização com timeout
+        try:
+            update_response = requests.put(
+                GITHUB_API_URL,
+                headers=headers,
+                json=payload,
+                timeout=10  # Timeout de 10 segundos
+            )
+            
+            if update_response.status_code == 200:
+                st.success("✅ Dados salvos com sucesso no GitHub!")
+                return True
+            else:
+                error_msg = update_response.json().get('message', 'Sem mensagem de erro')
+                st.error(f"Erro ao salvar (HTTP {update_response.status_code}): {error_msg}")
+                return False
+                
+        except requests.exceptions.Timeout:
+            st.error("Timeout ao tentar conectar com o GitHub")
             return False
+            
     except Exception as e:
-        st.error(f"Erro ao salvar dados: {str(e)}")
+        st.error(f"Erro inesperado: {str(e)}")
         return False
+
+
+@st.cache_data(ttl=300)  # Cache de 5 minutos
+def carregar_planilhas():
+    """
+    Carrega todas as planilhas do arquivo Excel
+    
+    Returns:
+        tuple: (movimentacoes, produtos, responsaveis, unidades, usuarios)
+    """
+    try:
+        dados = carregar_dados()
+        
+        if dados is None:
+            st.warning("Carregando dados vazios devido a erro anterior")
+            return (
+                pd.DataFrame(columns=['ID Produto', 'ID Responsavel', 'ID Unidade', 'Tipo', 'Quantidade', 'Fornecedor', 'Razão', 'Data']),
+                pd.DataFrame(columns=['ID Produto', 'Nome do Produto', 'Quantidade em Estoque', 'Unidade de Medida', 'Categoria']),
+                pd.DataFrame(columns=['ID Responsavel', 'Nome do Responsável', 'ID Unidade', 'Cargo', 'Telefone']),
+                pd.DataFrame(columns=['ID Unidade', 'Nome da Unidade', 'Endereço', 'Cidade', 'Estado']),
+                pd.DataFrame(columns=['username', 'senha', 'nivel_acesso'])
+            )
+        
+        # Verifica se todas as planilhas existem
+        required_sheets = ['movimentacoes', 'produtos', 'responsaveis', 'unidades', 'usuarios']
+        for sheet in required_sheets:
+            if sheet not in dados:
+                st.warning(f"Planilha '{sheet}' não encontrada no arquivo")
+                dados[sheet] = pd.DataFrame()
+        
+        return (
+            dados.get('movimentacoes', pd.DataFrame()),
+            dados.get('produtos', pd.DataFrame()),
+            dados.get('responsaveis', pd.DataFrame()),
+            dados.get('unidades', pd.DataFrame()),
+            dados.get('usuarios', pd.DataFrame())
+        )
+        
+    except Exception as e:
+        st.error(f"Erro ao carregar planilhas: {str(e)}")
+        return (
+            pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+        )
 
 # Função para carregar as planilhas
 @st.cache_data
