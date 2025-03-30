@@ -8,6 +8,14 @@ import json
 from io import BytesIO
 from github import Github
 
+dados_atualizados = {
+    'movimentacoes': df_movimentacoes,
+    'produtos': df_produtos,
+    'responsaveis': df_responsaveis,
+    'unidades': df_unidades,
+    'usuarios': df_usuarios
+}
+
 # Configurações do GitHub
 # Configurações seguras
 GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]  # Nome padronizado
@@ -158,13 +166,7 @@ def salvar_dados(dataframes):
         st.error(f"Erro inesperado: {str(e)}")
         return False
 
-dados_atualizados = {
-    'movimentacoes': df_movimentacoes,
-    'produtos': df_produtos,
-    'responsaveis': df_responsaveis,
-    'unidades': df_unidades,
-    'usuarios': df_usuarios
-}
+
 @st.cache_data(ttl=300)  # Cache de 5 minutos
 def carregar_planilhas():
     """
