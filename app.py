@@ -14,7 +14,7 @@ REPO_NAME = "meu-app-inventario"
 FILE_PATH = "inventario.xlsx"
 
 # URL base da API do GitHub
-GITHUB_API_URL = f"https://raw.githubusercontent.com/PuddingBach/meu-app-inventario/c790e17154b578e913a98bb7006e517f19745c93/inventario.xlsx"
+GITHUB_API_URL = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/contents/{FILE_PATH}"
 
 headers = {
     "Authorization": f"token {GITHUB_TOKEN}",
@@ -1104,7 +1104,18 @@ def main():
         elif st.session_state['pagina'] == 'usuarios':
             pagina_usuarios(usuarios)
 
-
+# Função para salvar as planilhas
+def salvar_planilhas(movimentacoes, produtos, responsaveis, unidades, usuarios):
+    try:
+        with pd.ExcelWriter('inventario.xlsx', engine='openpyxl') as writer:
+            movimentacoes.to_excel(writer, sheet_name='movimentacoes', index=False)
+            produtos.to_excel(writer, sheet_name='produtos', index=False)
+            responsaveis.to_excel(writer, sheet_name='responsaveis', index=False)
+            unidades.to_excel(writer, sheet_name='unidades', index=False)
+            usuarios.to_excel(writer, sheet_name='usuarios', index=False)
+        st.success("Dados salvos com sucesso!")
+    except Exception as e:
+        st.error(f"Erro ao salvar planilhas: {e}")
 # Executar o aplicativo
 if __name__ == "__main__":
     main()
