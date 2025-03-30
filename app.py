@@ -1,8 +1,84 @@
 import streamlit as st
 import pandas as pd
 import time  # Para adicionar delay
+import requests
+import base64
+import json
+# Configurações do GitHub
+GITHUB_TOKEN = "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"
+REPO_OWNER = "PuddingBach"
+REPO_NAME = "meu-app-inventario"
+FILE_PATH = "inventario.xlsx"
 
+# URL do arquivo no GitHub
+url = f"https://raw.githubusercontent.com/PuddingBach/meu-app-inventario/c790e17154b578e913a98bb7006e517f19745c93/inventario.xlsx"
+headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+
+def carregar_dados():
+    response = requests.get(url, headers=headers)
+    if response.status_code == 200:
+        try:
+            # Se for um arquivo Excel, use pandas para ler diretamente o conteúdo
+            conteudo = response.content  # Conteúdo binário do arquivo Excel
+            df = pd.read_excel(conteudo)  # Usando pandas para ler o arquivo Excel
+
+            # Não exibir nada na interface, já que queremos ocultar tudo
+            # Exibimos a tabela sem nada visualmente
+            st.write("")  # Exibe um espaço vazio, sem colunas nem linhas
+
+            return df  # Retorna o DataFrame completo para processamento posterior
+        except Exception as e:
+            st.error(f"Erro ao processar o arquivo: {e}")
+            return pd.DataFrame()
+    elif response.status_code == 404:
+        st.error("Arquivo não encontrado no repositório. Verifique se o caminho está correto.")
+    elif response.status_code == 401:
+        st.error("Acesso não autorizado. Verifique seu token do GitHub.")
+    else:
+        st.error(f"Erro ao carregar dados: {response.status_code} - {response.text}")
+    return pd.DataFrame(sheets=["Coluna1", "Coluna2", "Coluna3"])  # Ajuste conforme necessário
+
+def salvar_dados(df):
+    response = requests.get(url, headers=headers)
+    try:
+        data = response.json()
+    except json.JSONDecodeError:
+        st.error("Erro ao decodificar JSON ao obter SHA do arquivo. Resposta da API: " + response.text)
+        return False
+    
+    if "sha" not in data:
+        st.error("Não foi possível obter a SHA do arquivo. Verifique se ele existe no repositório.")
+        return False
+    
+    conteudo_b64 = base64.b64encode(df.to_csv(index=False).encode("utf-8")).decode("utf-8")
+    
+    payload = {
+        "message": "Atualizando dados via API Streamlit",
+        "content": conteudo_b64,
+        "sha": data.get("sha", "")  # Necessário para modificar um arquivo existente
+    }
+    
+    res = requests.put(url, headers=headers, data=json.dumps(payload))
+    if res.status_code == 200:
+        return True
+    else:
+        st.error(f"Erro ao salvar dados: {res.status_code} - {res.text}")
+        return False
+
+# Streamlit UI
+st.set_page_config(page_title="", layout="wide", initial_sidebar_state="collapsed")
+
+df = carregar_dados()  # Carrega e não exibe os dados
+
+if st.button("Adicionar Nova Linha"):
+    nova_linha = {"Coluna1": "Novo1", "Coluna2": "Novo2", "Coluna3": "Novo3"}
+    df = df.append(nova_linha, ignore_index=True)
+    if salvar_dados(df):
+        st.success("Dados salvos com sucesso!")
+    else:
+        st.error("Erro ao salvar os dados.")
 # Função para carregar as planilhas
+
 @st.cache_data
 def carregar_planilhas():
     try:
@@ -23,18 +99,7 @@ def carregar_planilhas():
         st.error(f"Erro ao carregar planilhas: {e}")
         return pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
-# Função para salvar as planilhas
-def salvar_planilhas(movimentacoes, produtos, responsaveis, unidades, usuarios):
-    try:
-        with pd.ExcelWriter('inventario.xlsx', engine='openpyxl') as writer:
-            movimentacoes.to_excel(writer, sheet_name='movimentacoes', index=False)
-            produtos.to_excel(writer, sheet_name='produtos', index=False)
-            responsaveis.to_excel(writer, sheet_name='responsaveis', index=False)
-            unidades.to_excel(writer, sheet_name='unidades', index=False)
-            usuarios.to_excel(writer, sheet_name='usuarios', index=False)
-        st.success("Dados salvos com sucesso!")
-    except Exception as e:
-        st.error(f"Erro ao salvar planilhas: {e}")
+
 
 # Função para adicionar movimentação
 def adicionar_movimentacao(movimentacoes, produtos, responsaveis, unidades, produto_nome, responsavel_nome, unidade_nome, tipo, quantidade, fornecedor, razao, data):
@@ -1005,6 +1070,18 @@ def main():
         elif st.session_state['pagina'] == 'usuarios':
             pagina_usuarios(usuarios)
 
+# Função para salvar as planilhas
+def salvar_planilhas(movimentacoes, produtos, responsaveis, unidades, usuarios):
+    try:
+        with pd.ExcelWriter('inventario.xlsx', engine='openpyxl') as writer:
+            movimentacoes.to_excel(writer, sheet_name='movimentacoes', index=False)
+            produtos.to_excel(writer, sheet_name='produtos', index=False)
+            responsaveis.to_excel(writer, sheet_name='responsaveis', index=False)
+            unidades.to_excel(writer, sheet_name='unidades', index=False)
+            usuarios.to_excel(writer, sheet_name='usuarios', index=False)
+        st.success("Dados salvos com sucesso!")
+    except Exception as e:
+        st.error(f"Erro ao salvar planilhas: {e}")
 # Executar o aplicativo
 if __name__ == "__main__":
     main()
