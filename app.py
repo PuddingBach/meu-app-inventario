@@ -8,13 +8,6 @@ import json
 from io import BytesIO
 from github import Github
 
-dados_atualizados = {
-    'movimentacoes': df_movimentacoes,
-    'produtos': df_produtos,
-    'responsaveis': df_responsaveis,
-    'unidades': df_unidades,
-    'usuarios': df_usuarios
-}
 
 # Configurações do GitHub
 # Configurações seguras
