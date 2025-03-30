@@ -158,7 +158,13 @@ def salvar_dados(dataframes):
         st.error(f"Erro inesperado: {str(e)}")
         return False
 
-
+dados_atualizados = {
+    'movimentacoes': df_movimentacoes,
+    'produtos': df_produtos,
+    'responsaveis': df_responsaveis,
+    'unidades': df_unidades,
+    'usuarios': df_usuarios
+}
 @st.cache_data(ttl=300)  # Cache de 5 minutos
 def carregar_planilhas():
     """
@@ -200,13 +206,7 @@ def carregar_planilhas():
         return (
             pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
         )
-dados_atualizados = {
-    'movimentacoes': df_movimentacoes,
-    'produtos': df_produtos,
-    'responsaveis': df_responsaveis,
-    'unidades': df_unidades,
-    'usuarios': df_usuarios
-}
+
 
 if salvar_dados(dados_atualizados):
     st.cache_data.clear()  # Limpa o cache para recarregar os dados
