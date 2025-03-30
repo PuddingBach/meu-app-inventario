@@ -29,15 +29,31 @@ def carregar_dados():
         
         if response.status_code == 200:
             file_content = response.json()
-            download_url = file_content.get("download_url")
             
-            if download_url:
-                # Baixar o arquivo Excel
-                excel_response = requests.get(download_url)
-                if excel_response.status_code == 200:
-                    # Ler o arquivo Excel diretamente do conteúdo binário
-                    df = pd.read_excel(BytesIO(excel_response.content), sheet_name=None)
-                    return df
+            # Verificar se o conteúdo está codificado em base64
+            if 'content' in file_content:
+                # Decodificar o conteúdo base64
+                file_data = base64.b64decode(file_content['content'])
+                
+                # Ler o arquivo Excel diretamente do conteúdo decodificado
+                df = pd.read_excel(BytesIO(file_data), sheet_name=None)
+                
+                # Verificar se todas as planilhas necessárias estão presentes
+                sheets_required = ['movimentacoes', 'produtos', 'responsaveis', 'unidades', 'usuarios']
+                for sheet in sheets_required:
+                    if sheet not in df:
+                        st.error(f"Planilha '{sheet}' não encontrada no arquivo Excel.")
+                        return {
+                            'movimentacoes': pd.DataFrame(),
+                            'produtos': pd.DataFrame(),
+                            'responsaveis': pd.DataFrame(),
+                            'unidades': pd.DataFrame(),
+                            'usuarios': pd.DataFrame()
+                        }
+                
+                return df
+            else:
+                st.error("Conteúdo do arquivo não encontrado na resposta.")
         elif response.status_code == 404:
             st.error("Arquivo não encontrado no repositório.")
         else:
@@ -76,8 +92,10 @@ def salvar_dados(dataframes):
             for sheet_name, df in dataframes.items():
                 df.to_excel(writer, sheet_name=sheet_name, index=False)
         
-        # Codificar o conteúdo em base64
+        # Obter os bytes do arquivo Excel
         excel_data = output.getvalue()
+        
+        # Codificar o conteúdo em base64
         content = base64.b64encode(excel_data).decode("utf-8")
         
         # Preparar os dados para envio
@@ -106,23 +124,41 @@ def carregar_planilhas():
     try:
         dados = carregar_dados()
         
-        movimentacoes = dados.get('movimentacoes', pd.DataFrame())
-        produtos = dados.get('produtos', pd.DataFrame())
-        responsaveis = dados.get('responsaveis', pd.DataFrame())
-        unidades = dados.get('unidades', pd.DataFrame())
-        usuarios = dados.get('usuarios', pd.DataFrame())
+        # Obter cada DataFrame ou criar um vazio se não existir
+        movimentacoes = dados.get('movimentacoes', pd.DataFrame(columns=[
+            'ID Produto', 'ID Responsavel', 'ID Unidade', 'Tipo', 
+            'Quantidade', 'Fornecedor', 'Razão', 'Data'
+        ]))
         
-        # Verificar se as colunas necessárias existem
-        colunas_necessarias = ['username', 'senha', 'nivel_acesso']
-        if not all(coluna in usuarios.columns for coluna in colunas_necessarias):
-            st.error(f"As colunas necessárias {colunas_necessarias} não foram encontradas na planilha 'usuarios'.")
-            return pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+        produtos = dados.get('produtos', pd.DataFrame(columns=[
+            'ID Produto', 'Nome do Produto', 'Quantidade em Estoque', 
+            'Unidade de Medida', 'Categoria'
+        ]))
+        
+        responsaveis = dados.get('responsaveis', pd.DataFrame(columns=[
+            'ID Responsavel', 'Nome do Responsável', 'ID Unidade', 
+            'Cargo', 'Telefone'
+        ]))
+        
+        unidades = dados.get('unidades', pd.DataFrame(columns=[
+            'ID Unidade', 'Nome da Unidade', 'Endereço', 'Cidade', 'Estado'
+        ]))
+        
+        usuarios = dados.get('usuarios', pd.DataFrame(columns=[
+            'username', 'senha', 'nivel_acesso'
+        ]))
         
         return movimentacoes, produtos, responsaveis, unidades, usuarios
     except Exception as e:
         st.error(f"Erro ao carregar planilhas: {e}")
-        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
-
+        # Retornar DataFrames vazios com colunas definidas
+        return (
+            pd.DataFrame(columns=['ID Produto', 'ID Responsavel', 'ID Unidade', 'Tipo', 'Quantidade', 'Fornecedor', 'Razão', 'Data']),
+            pd.DataFrame(columns=['ID Produto', 'Nome do Produto', 'Quantidade em Estoque', 'Unidade de Medida', 'Categoria']),
+            pd.DataFrame(columns=['ID Responsavel', 'Nome do Responsável', 'ID Unidade', 'Cargo', 'Telefone']),
+            pd.DataFrame(columns=['ID Unidade', 'Nome da Unidade', 'Endereço', 'Cidade', 'Estado']),
+            pd.DataFrame(columns=['username', 'senha', 'nivel_acesso'])
+        )
 # Função para salvar as planilhas
 
 # Em algum lugar antes de chamar salvar_planilhas()
