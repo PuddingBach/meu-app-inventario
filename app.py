@@ -11,6 +11,9 @@ from github import Github
 # Configurações do GitHub
 # Configurações seguras
 GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]  # Nome padronizado
+if not GITHUB_TOKEN:
+    st.error("❌ Token do GitHub não configurado!")
+    st.stop()  # Para a execução se faltar o token
 REPO_OWNER = "PuddingBach"
 REPO_NAME = "meu-app-inventario"
 FILE_PATH = "inventario.xlsx"
