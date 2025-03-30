@@ -203,8 +203,7 @@ def carregar_planilhas():
         )
 
 
-if salvar_dados(dados_atualizados):
-    st.cache_data.clear()  # Limpa o cache para recarregar os dados
+
 # Função para carregar as planilhas
 @st.cache_data
 def carregar_planilhas():
