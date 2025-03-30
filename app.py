@@ -6,9 +6,10 @@ import requests
 import base64
 import json
 from io import BytesIO
+from github import Github
 
 # Configurações do GitHub
-GITHUB_TOKEN = "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"
+GITHUB_TOKEN = "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"
 REPO_OWNER = "PuddingBach"
 REPO_NAME = "meu-app-inventario"
 FILE_PATH = "inventario.xlsx"
@@ -123,16 +124,45 @@ def carregar_planilhas():
         return pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
 # Função para salvar as planilhas
-def salvar_planilhas(movimentacoes, produtos, responsaveis, unidades, usuarios):
-    dataframes = {
-        'movimentacoes': movimentacoes,
-        'produtos': produtos,
-        'responsaveis': responsaveis,
-        'unidades': unidades,
-        'usuarios': usuarios
-    }
-    return salvar_dados(dataframes)
 
+# Em algum lugar antes de chamar salvar_planilhas()
+st.session_state['github_token'] = "seu_token_de_acesso_github"
+
+def salvar_planilhas(movimentacoes, produtos, responsaveis, unidades, usuarios):
+    """Função para salvar todas as planilhas no GitHub"""
+    try:
+        # Verifica se temos um token de acesso válido na sessão
+        if 'github_token' not in st.session_state or not st.session_state['github_token']:
+            st.error("Erro de autenticação: Token de acesso ao GitHub não configurado")
+            return False
+        
+        # Configura o cliente do PyGithub
+        g = Github(st.session_state['github_token'])
+        repo = g.get_repo("seu_usuario/seu_repositorio")  # Substitua com seus dados
+        
+        # Salva cada planilha como um arquivo CSV no repositório
+        def salvar_arquivo(nome_arquivo, dataframe):
+            content = dataframe.to_csv(index=False)
+            try:
+                # Tenta atualizar o arquivo se ele já existir
+                contents = repo.get_contents(f"dados/{nome_arquivo}.csv")
+                repo.update_file(contents.path, f"Atualização {nome_arquivo}", content, contents.sha)
+            except:
+                # Se o arquivo não existir, cria um novo
+                repo.create_file(f"dados/{nome_arquivo}.csv", f"Criação {nome_arquivo}", content)
+        
+        # Salva todos os arquivos
+        salvar_arquivo("movimentacoes", movimentacoes)
+        salvar_arquivo("produtos", produtos)
+        salvar_arquivo("responsaveis", responsaveis)
+        salvar_arquivo("unidades", unidades)
+        salvar_arquivo("usuarios", usuarios)
+        
+        return True
+        
+    except Exception as e:
+        st.error(f"Erro ao salvar dados no GitHub: {str(e)}")
+        return False
 # [Restante do código permanece igual...]
 
 # Função para adicionar movimentação
