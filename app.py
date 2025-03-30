@@ -9,7 +9,7 @@ from io import BytesIO
 from github import Github
 
 # Configurações do GitHub
-GITHUB_TOKEN = "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"
+GITHUB_TOKEN = st.secrets["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"]  # Adicione no arquivo secrets.toml
 REPO_OWNER = "PuddingBach"
 REPO_NAME = "meu-app-inventario"
 FILE_PATH = "inventario.xlsx"
