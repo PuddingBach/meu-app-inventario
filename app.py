@@ -200,7 +200,16 @@ def carregar_planilhas():
         return (
             pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
         )
+dados_atualizados = {
+    'movimentacoes': df_movimentacoes,
+    'produtos': df_produtos,
+    'responsaveis': df_responsaveis,
+    'unidades': df_unidades,
+    'usuarios': df_usuarios
+}
 
+if salvar_dados(dados_atualizados):
+    st.cache_data.clear()  # Limpa o cache para recarregar os dados
 # Função para carregar as planilhas
 @st.cache_data
 def carregar_planilhas():
