@@ -8,7 +8,7 @@ import json
 from io import BytesIO
 
 # Configurações do GitHub
-GITHUB_TOKEN = "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"
+GITHUB_TOKEN = "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"
 REPO_OWNER = "PuddingBach"
 REPO_NAME = "meu-app-inventario"
 FILE_PATH = "inventario.xlsx"
