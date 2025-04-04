@@ -51,7 +51,6 @@ def load_sheet_data():
     try:
         gc = get_gs_client()
         
-        # Verificação EXTRA de acesso
         try:
             spreadsheet = gc.open_by_key(SPREADSHEET_ID)
             st.session_state['spreadsheet_title'] = spreadsheet.title
@@ -62,7 +61,6 @@ def load_sheet_data():
             st.error(f"3. Não está na lixeira")
             st.stop()
         
-        # Carregamento das abas
         data = {}
         for key, sheet_name in SHEET_NAMES.items():
             try:
@@ -99,8 +97,8 @@ def save_data(dataframes):
                     title=SHEET_NAMES[sheet_name], 
                     rows=100, 
                     cols=len(df.columns)
-                
-            # Atualização em lote
+                )  # Fechamento correto dos parênteses aqui
+            
             worksheet.clear()
             worksheet.update(
                 [df.columns.values.tolist()] + df.fillna('').values.tolist(),
@@ -146,11 +144,9 @@ def check_login(username, password, users_df):
         st.error(f"Erro no login: {str(e)}")
         return False
 
-# --- INTERFACE DO USUÁRIO ---
+# --- INTERFACE ---
 def show_login():
-    """Página de login"""
     st.title("🔒 Login do Sistema")
-    
     _, _, _, _, users_df = load_sheet_data()
     
     with st.form("login_form"):
@@ -161,37 +157,22 @@ def show_login():
             if check_login(username, password, users_df):
                 st.rerun()
 
-# Função para adicionar movimentação
-def adicionar_movimentacao(movimentacoes, produtos, responsaveis, unidades, produto_nome, responsavel_nome, unidade_nome, tipo, quantidade, fornecedor, razao, data):
-    try:
-        # Obter IDs correspondentes
-        id_produto = produtos.loc[produtos['Nome do Produto'] == produto_nome, 'ID Produto'].values[0]
-        id_responsavel = responsaveis.loc[responsaveis['Nome do Responsável'] == responsavel_nome, 'ID Responsavel'].values[0]
-        id_unidade = unidades.loc[unidades['Nome da Unidade'] == unidade_nome, 'ID Unidade'].values[0]
-        
-        # Atualizar a quantidade em estoque
-        if tipo == "Entrada":
-            produtos.loc[produtos['ID Produto'] == id_produto, 'Quantidade em Estoque'] += quantidade
-        elif tipo == "Saída":
-            produtos.loc[produtos['ID Produto'] == id_produto, 'Quantidade em Estoque'] -= quantidade
-        
-        # Criar nova movimentação
-        nova_movimentacao = {
-            'ID Produto': id_produto,
-            'ID Responsavel': id_responsavel,
-            'ID Unidade': id_unidade,
-            'Tipo': tipo,
-            'Quantidade': quantidade,
-            'Fornecedor': fornecedor,
-            'Razão': razao,
-            'Data': data
-        }
-        movimentacoes = pd.concat([movimentacoes, pd.DataFrame([nova_movimentacao])], ignore_index=True)
-        return movimentacoes, produtos
-    except Exception as e:
-        st.error(f"Erro ao adicionar movimentação: {e}")
-        return movimentacoes, produtos
+def main_app():
+    st.title(f"📦 Sistema de Inventário - {st.session_state['user']['name']}")
+    mov, prod, resp, uni, _ = load_sheet_data()
+    
+    # Sua lógica de inventário aqui
+    st.dataframe(prod)
+    
+    if st.button("Logout"):
+        st.session_state.clear()
+        st.rerun()
 
+# --- EXECUÇÃO ---
+if 'user' not in st.session_state:
+    show_login()
+else:
+    main_app()
 # Função para verificar o login
 def verificar_login(username, senha, usuarios):
     try:
