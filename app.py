@@ -1,24 +1,36 @@
 import streamlit as st
+
+# DEVE SER A PRIMEIRA LINHA EXECUTÁVEL (antes de qualquer import ou operação)
+st.set_page_config(page_title="Sistema de Inventário", layout="wide")
+
+# Agora sim, faça os imports
 import pandas as pd
 import gspread
 from google.oauth2 import service_account
 from datetime import datetime
 
-# Verificação EXTRA do SPREADSHEET_ID
-# No início do seu código, após as imports
-# Método 100% manual (apenas para testes)
-SPREADSHEET_ID = st.text_input(
-    "Cole o ID da planilha manualmente",
-    value="1i7YM5eQH9ze6oD7s_aciuwpWKM8moFqm76rmA6NcJ4A"  # Substitua pelo seu ID real
-)
-
-if len(SPREADSHEET_ID) < 44:
-    st.error("ID inválido! Deve ter 44 caracteres")
+# --- VERIFICAÇÃO DAS CREDENCIAIS ---
+if 'google_creds' not in st.secrets:
+    st.error("❌ Credenciais do Google Sheets não encontradas no secrets.toml")
     st.stop()
 
+try:
+    CREDS = service_account.Credentials.from_service_account_info(
+        st.secrets["google_creds"],
+        scopes=["https://www.googleapis.com/auth/spreadsheets"]
+    )
+    CLIENT_EMAIL = st.secrets["google_creds"]["client_email"]
+except Exception as e:
+    st.error(f"❌ Erro ao carregar credenciais: {str(e)}")
+    st.stop()
 
-# Configuração inicial
-st.set_page_config(page_title="Sistema de Inventário", layout="wide")
+# --- CONFIGURAÇÃO DA PLANILHA ---
+SPREADSHEET_ID = st.secrets.get("SPREADSHEET_ID")
+if not SPREADSHEET_ID or len(SPREADSHEET_ID) < 44:
+    st.error("❌ SPREADSHEET_ID inválido ou não configurado")
+    st.stop()
+
+# Restante do seu código continua aqui...
 
 # --- VERIFICAÇÃO DAS CREDENCIAIS ---
 if 'google_creds' not in st.secrets:
