@@ -9,6 +9,8 @@ if 'google_creds' not in st.secrets:
     st.error("❌ Credenciais do Google Sheets não configuradas!")
     st.stop()
 
+SPREADSHEET_ID = "1i7YM5eQH9ze6oD7s_aciuwpWKM8moFqm76rmA6NcJ4A"
+
 # Autenticação com Google Sheets
 def get_google_sheets_client():
     """Versão reforçada da autenticação"""
