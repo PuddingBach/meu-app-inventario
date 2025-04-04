@@ -6,13 +6,15 @@ from datetime import datetime
 
 # Verificação EXTRA do SPREADSHEET_ID
 # No início do seu código, após as imports
-SPREADSHEET_URL = st.secrets.get("SPREADSHEET_URL", "https://docs.google.com/spreadsheets/d/SEU_ID_DA_PLANILHA/edit")
+# Método 100% manual (apenas para testes)
+SPREADSHEET_ID = st.text_input(
+    "Cole o ID da planilha manualmente",
+    value="1i7YM5eQH9ze6oD7s_aciuwpWKM8moFqm76rmA6NcJ4A"  # Substitua pelo seu ID real
+)
 
-# Função para extrair o ID
-def extract_spreadsheet_id(url):
-    import re
-    match = re.search(r'/spreadsheets/d/([a-zA-Z0-9-_]+)', url)
-    return match.group(1) if match else url  # Se não achar, assume que já é um ID
+if len(SPREADSHEET_ID) < 44:
+    st.error("ID inválido! Deve ter 44 caracteres")
+    st.stop()
 
 
 # Configuração inicial
