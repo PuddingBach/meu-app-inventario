@@ -80,12 +80,21 @@ def salvar_dados(dataframes):
 
 @st.cache_data(ttl=300)  # Cache de 5 minutos
 def carregar_planilhas():
-    """
-    Carrega todas as planilhas do Google Sheets
+    dados = carregar_dados()  # Sua função existente que lê do Google Sheets
     
-    Returns:
-        tuple: (movimentacoes, produtos, responsaveis, unidades, usuarios)
-    """
+    # Garante que a planilha de usuários tenha as colunas necessárias
+    if 'usuarios' in dados:
+        required_columns = ['username', 'senha', 'nivel_acesso']
+        for col in required_columns:
+            if col not in dados['usuarios'].columns:
+                dados['usuarios'][col] = ""  # Cria coluna vazia se não existir
+    
+    return (
+        dados.get('movimentacoes', pd.DataFrame()),
+        dados.get('produtos', pd.DataFrame()),
+        dados.get('responsaveis', pd.DataFrame()),
+        dados.get('unidades', pd.DataFrame()),
+        dados.get('usuarios', pd.DataFrame(columns=required_columns))  # Retorna colunas padrão
     try:
         dados = carregar_dados()
         
