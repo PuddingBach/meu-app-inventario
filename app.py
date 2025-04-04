@@ -5,8 +5,16 @@ from google.oauth2 import service_account
 from datetime import datetime
 
 # Verificação EXTRA do SPREADSHEET_ID
-SPREADSHEET_ID = st.secrets.get("SPREADSHEET_ID", "")
+# No início do seu código, após as imports
+SPREADSHEET_URL = st.secrets.get("SPREADSHEET_URL", "https://docs.google.com/spreadsheets/d/SEU_ID_DA_PLANILHA/edit")
 
+# Função para extrair o ID
+def extract_spreadsheet_id(url):
+    import re
+    match = re.search(r'/spreadsheets/d/([a-zA-Z0-9-_]+)', url)
+    return match.group(1) if match else url  # Se não achar, assume que já é um ID
+
+SPREADSHEET_ID = extract_spreadsheet_id(SPREADSHEET_URL)
 if not SPREADSHEET_ID or not isinstance(SPREADSHEET_ID, str) or len(SPREADSHEET_ID) < 44:
     st.error(f"""
     ❌ Problema com o SPREADSHEET_ID. Verifique:
