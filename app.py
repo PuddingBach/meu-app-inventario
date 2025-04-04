@@ -1,169 +1,87 @@
-
 import streamlit as st
 import pandas as pd
-import time
-import requests
-import base64
-import json
-from io import BytesIO
-from github import Github
+import gspread
+from google.oauth2 import service_account
+from datetime import datetime
 
+# Configurações do Google Sheets
+if 'google_creds' not in st.secrets:
+    st.error("❌ Credenciais do Google Sheets não configuradas!")
+    st.stop()
 
-# Configurações do GitHub
-# Configurações seguras
-GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]  # Nome padronizado
-if not GITHUB_TOKEN:
-    st.error("❌ Token do GitHub não configurado!")
-    st.stop()  # Para a execução se faltar o token
-REPO_OWNER = "PuddingBach"
-REPO_NAME = "meu-app-inventario"
-FILE_PATH = "inventario.xlsx"
+# Autenticação com Google Sheets
+def get_google_sheets_client():
+    try:
+        creds = service_account.Credentials.from_service_account_info(
+            st.secrets["google_creds"],
+            scopes=["https://www.googleapis.com/auth/spreadsheets"]
+        )
+        return gspread.authorize(creds)
+    except Exception as e:
+        st.error(f"Erro de autenticação: {e}")
+        st.stop()
 
-# URL base da API do GitHub
-GITHUB_API_URL = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/contents/{FILE_PATH}"
-
-headers = {
-    "Authorization": f"token {GITHUB_TOKEN}",
-    "Accept": "application/vnd.github.v3+json"
+# Configurações da planilha
+SPREADSHEET_ID = st.secrets.get("SPREADSHEET_ID", "seu-id-da-planilha")
+SHEET_NAMES = {
+    'movimentacoes': 'movimentacoes',
+    'produtos': 'produtos',
+    'responsaveis': 'responsaveis',
+    'unidades': 'unidades',
+    'usuarios': 'usuarios'
 }
 
 def carregar_dados():
+    """Carrega todos os dados das planilhas do Google Sheets"""
     try:
-        # Primeiro, obter o conteúdo do arquivo
-        response = requests.get(GITHUB_API_URL, headers=headers)
+        gc = get_google_sheets_client()
+        spreadsheet = gc.open_by_key(SPREADSHEET_ID)
         
-        if response.status_code == 200:
-            file_content = response.json()
-            
-            # Verificar se o conteúdo está codificado em base64
-            if 'content' in file_content:
-                # Decodificar o conteúdo base64
-                file_data = base64.b64decode(file_content['content'])
-                
-                # Ler o arquivo Excel diretamente do conteúdo decodificado
-                df = pd.read_excel(BytesIO(file_data), sheet_name=None)
-                
-                # Verificar se todas as planilhas necessárias estão presentes
-                sheets_required = ['movimentacoes', 'produtos', 'responsaveis', 'unidades', 'usuarios']
-                for sheet in sheets_required:
-                    if sheet not in df:
-                        st.error(f"Planilha '{sheet}' não encontrada no arquivo Excel.")
-                        return {
-                            'movimentacoes': pd.DataFrame(),
-                            'produtos': pd.DataFrame(),
-                            'responsaveis': pd.DataFrame(),
-                            'unidades': pd.DataFrame(),
-                            'usuarios': pd.DataFrame()
-                        }
-                
-                return df
-            else:
-                st.error("Conteúdo do arquivo não encontrado na resposta.")
-        elif response.status_code == 404:
-            st.error("Arquivo não encontrado no repositório.")
-        else:
-            st.error(f"Erro ao carregar dados: {response.status_code} - {response.text}")
+        dados = {}
+        for key, sheet_name in SHEET_NAMES.items():
+            worksheet = spreadsheet.worksheet(sheet_name)
+            records = worksheet.get_all_records()
+            dados[key] = pd.DataFrame(records)
+        
+        return dados
     except Exception as e:
-        st.error(f"Erro ao processar o arquivo: {e}")
-    
-    # Retornar DataFrames vazios em caso de erro
-    return {
-        'movimentacoes': pd.DataFrame(),
-        'produtos': pd.DataFrame(),
-        'responsaveis': pd.DataFrame(),
-        'unidades': pd.DataFrame(),
-        'usuarios': pd.DataFrame()
-    }
+        st.error(f"Erro ao carregar dados: {e}")
+        return {
+            'movimentacoes': pd.DataFrame(),
+            'produtos': pd.DataFrame(),
+            'responsaveis': pd.DataFrame(),
+            'unidades': pd.DataFrame(),
+            'usuarios': pd.DataFrame()
+        }
 
 def salvar_dados(dataframes):
-    """
-    Salva os dataframes no arquivo Excel no GitHub
-    
-    Args:
-        dataframes (dict): Dicionário com os DataFrames a serem salvos
-            Formato: {'nome_planilha': dataframe}
-    
-    Returns:
-        bool: True se salvou com sucesso, False caso contrário
-    """
+    """Salva os dataframes nas planilhas correspondentes do Google Sheets"""
     try:
-        # 1. Obter informações do arquivo atual
-        response = requests.get(GITHUB_API_URL, headers=headers)
+        gc = get_google_sheets_client()
+        spreadsheet = gc.open_by_key(SPREADSHEET_ID)
         
-        # Verificação robusta da resposta
-        if response.status_code != 200:
-            error_msg = response.json().get('message', 'Sem mensagem de erro')
-            st.error(f"Erro ao obter arquivo (HTTP {response.status_code}): {error_msg}")
-            return False
-        
-        file_info = response.json()
-        sha = file_info.get("sha")
-        
-        if not sha:
-            st.error("SHA do arquivo não encontrado na resposta")
-            return False
-        
-        # 2. Criar arquivo Excel em memória
-        output = BytesIO()
-        
-        try:
-            with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                for sheet_name, df in dataframes.items():
-                    # Verifica se o DataFrame está vazio
-                    if df.empty:
-                        st.warning(f"A planilha '{sheet_name}' está vazia")
-                    
-                    # Remove índices e salva
-                    df.to_excel(writer, sheet_name=sheet_name, index=False)
-        except Exception as e:
-            st.error(f"Erro ao criar arquivo Excel: {str(e)}")
-            return False
-        
-        # 3. Preparar dados para envio
-        excel_data = output.getvalue()
-        
-        try:
-            content = base64.b64encode(excel_data).decode("utf-8")
-        except Exception as e:
-            st.error(f"Erro ao codificar dados: {str(e)}")
-            return False
-        
-        payload = {
-            "message": f"Atualização via Streamlit App - {datetime.now().strftime('%Y-%m-%d %H:%M')}",
-            "content": content,
-            "sha": sha
-        }
-        
-        # 4. Enviar atualização com timeout
-        try:
-            update_response = requests.put(
-                GITHUB_API_URL,
-                headers=headers,
-                json=payload,
-                timeout=10  # Timeout de 10 segundos
-            )
-            
-            if update_response.status_code == 200:
-                st.success("✅ Dados salvos com sucesso no GitHub!")
-                return True
-            else:
-                error_msg = update_response.json().get('message', 'Sem mensagem de erro')
-                st.error(f"Erro ao salvar (HTTP {update_response.status_code}): {error_msg}")
-                return False
+        for sheet_name, df in dataframes.items():
+            if sheet_name in SHEET_NAMES:
+                worksheet = spreadsheet.worksheet(SHEET_NAMES[sheet_name])
                 
-        except requests.exceptions.Timeout:
-            st.error("Timeout ao tentar conectar com o GitHub")
-            return False
-            
+                # Limpa a planilha (exceto cabeçalho)
+                worksheet.clear()
+                
+                # Atualiza com novos dados
+                worksheet.update(
+                    [df.columns.values.tolist()] + df.values.tolist()
+                )
+        
+        st.success("✅ Dados salvos com sucesso no Google Sheets!")
+        return True
     except Exception as e:
-        st.error(f"Erro inesperado: {str(e)}")
+        st.error(f"Erro ao salvar dados: {e}")
         return False
-
 
 @st.cache_data(ttl=300)  # Cache de 5 minutos
 def carregar_planilhas():
     """
-    Carrega todas as planilhas do arquivo Excel
+    Carrega todas as planilhas do Google Sheets
     
     Returns:
         tuple: (movimentacoes, produtos, responsaveis, unidades, usuarios)
@@ -171,122 +89,63 @@ def carregar_planilhas():
     try:
         dados = carregar_dados()
         
-        if dados is None:
-            st.warning("Carregando dados vazios devido a erro anterior")
-            return (
-                pd.DataFrame(columns=['ID Produto', 'ID Responsavel', 'ID Unidade', 'Tipo', 'Quantidade', 'Fornecedor', 'Razão', 'Data']),
-                pd.DataFrame(columns=['ID Produto', 'Nome do Produto', 'Quantidade em Estoque', 'Unidade de Medida', 'Categoria']),
-                pd.DataFrame(columns=['ID Responsavel', 'Nome do Responsável', 'ID Unidade', 'Cargo', 'Telefone']),
-                pd.DataFrame(columns=['ID Unidade', 'Nome da Unidade', 'Endereço', 'Cidade', 'Estado']),
-                pd.DataFrame(columns=['username', 'senha', 'nivel_acesso'])
-            )
-        
-        # Verifica se todas as planilhas existem
-        required_sheets = ['movimentacoes', 'produtos', 'responsaveis', 'unidades', 'usuarios']
-        for sheet in required_sheets:
-            if sheet not in dados:
-                st.warning(f"Planilha '{sheet}' não encontrada no arquivo")
-                dados[sheet] = pd.DataFrame()
-        
         return (
-            dados.get('movimentacoes', pd.DataFrame()),
-            dados.get('produtos', pd.DataFrame()),
-            dados.get('responsaveis', pd.DataFrame()),
-            dados.get('unidades', pd.DataFrame()),
-            dados.get('usuarios', pd.DataFrame())
+            dados.get('movimentacoes', pd.DataFrame(columns=[
+                'ID Produto', 'ID Responsavel', 'ID Unidade', 'Tipo', 
+                'Quantidade', 'Fornecedor', 'Razão', 'Data'
+            ])),
+            dados.get('produtos', pd.DataFrame(columns=[
+                'ID Produto', 'Nome do Produto', 'Quantidade em Estoque', 
+                'Unidade de Medida', 'Categoria'
+            ])),
+            dados.get('responsaveis', pd.DataFrame(columns=[
+                'ID Responsavel', 'Nome do Responsável', 'ID Unidade', 
+                'Cargo', 'Telefone'
+            ])),
+            dados.get('unidades', pd.DataFrame(columns=[
+                'ID Unidade', 'Nome da Unidade', 'Endereço', 'Cidade', 'Estado'
+            ])),
+            dados.get('usuarios', pd.DataFrame(columns=[
+                'username', 'senha', 'nivel_acesso'
+            ]))
         )
-        
     except Exception as e:
-        st.error(f"Erro ao carregar planilhas: {str(e)}")
+        st.error(f"Erro ao carregar planilhas: {e}")
         return (
             pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
         )
 
+# Exemplo de uso na aplicação
+def main():
+    st.title("Sistema de Inventário com Google Sheets")
+    
+    # Carrega os dados
+    movimentacoes, produtos, responsaveis, unidades, usuarios = carregar_planilhas()
+    
+    # Exemplo de edição
+    with st.form("editar_produto"):
+        st.write("Editar Produto")
+        produto_id = st.text_input("ID do Produto")
+        novo_nome = st.text_input("Novo Nome")
+        nova_quantidade = st.number_input("Nova Quantidade", min_value=0)
+        
+        if st.form_submit_button("Salvar Alterações"):
+            # Atualiza o DataFrame local
+            produtos.loc[produtos['ID Produto'] == produto_id, 'Nome do Produto'] = novo_nome
+            produtos.loc[produtos['ID Produto'] == produto_id, 'Quantidade em Estoque'] = nova_quantidade
+            
+            # Salva no Google Sheets
+            if salvar_dados({
+                'movimentacoes': movimentacoes,
+                'produtos': produtos,
+                'responsaveis': responsaveis,
+                'unidades': unidades,
+                'usuarios': usuarios
+            }):
+                st.rerun()  # Recarrega os dados
 
-
-# Função para carregar as planilhas
-@st.cache_data
-def carregar_planilhas():
-    try:
-        dados = carregar_dados()
-        
-        # Obter cada DataFrame ou criar um vazio se não existir
-        movimentacoes = dados.get('movimentacoes', pd.DataFrame(columns=[
-            'ID Produto', 'ID Responsavel', 'ID Unidade', 'Tipo', 
-            'Quantidade', 'Fornecedor', 'Razão', 'Data'
-        ]))
-        
-        produtos = dados.get('produtos', pd.DataFrame(columns=[
-            'ID Produto', 'Nome do Produto', 'Quantidade em Estoque', 
-            'Unidade de Medida', 'Categoria'
-        ]))
-        
-        responsaveis = dados.get('responsaveis', pd.DataFrame(columns=[
-            'ID Responsavel', 'Nome do Responsável', 'ID Unidade', 
-            'Cargo', 'Telefone'
-        ]))
-        
-        unidades = dados.get('unidades', pd.DataFrame(columns=[
-            'ID Unidade', 'Nome da Unidade', 'Endereço', 'Cidade', 'Estado'
-        ]))
-        
-        usuarios = dados.get('usuarios', pd.DataFrame(columns=[
-            'username', 'senha', 'nivel_acesso'
-        ]))
-        
-        return movimentacoes, produtos, responsaveis, unidades, usuarios
-    except Exception as e:
-        st.error(f"Erro ao carregar planilhas: {e}")
-        # Retornar DataFrames vazios com colunas definidas
-        return (
-            pd.DataFrame(columns=['ID Produto', 'ID Responsavel', 'ID Unidade', 'Tipo', 'Quantidade', 'Fornecedor', 'Razão', 'Data']),
-            pd.DataFrame(columns=['ID Produto', 'Nome do Produto', 'Quantidade em Estoque', 'Unidade de Medida', 'Categoria']),
-            pd.DataFrame(columns=['ID Responsavel', 'Nome do Responsável', 'ID Unidade', 'Cargo', 'Telefone']),
-            pd.DataFrame(columns=['ID Unidade', 'Nome da Unidade', 'Endereço', 'Cidade', 'Estado']),
-            pd.DataFrame(columns=['username', 'senha', 'nivel_acesso'])
-        )
-# Função para salvar as planilhas
-
-# Em algum lugar antes de chamar salvar_planilhas()
-st.session_state['github_token'] = "seu_token_de_acesso_github"
-
-def salvar_planilhas(movimentacoes, produtos, responsaveis, unidades, usuarios):
-    """Função para salvar todas as planilhas no GitHub"""
-    try:
-        # Verifica se temos um token de acesso válido na sessão
-        if 'github_token' not in st.session_state or not st.session_state['github_token']:
-            st.error("Erro de autenticação: Token de acesso ao GitHub não configurado")
-            return False
-        
-        # Configura o cliente do PyGithub
-        g = Github(st.session_state['github_token'])
-        repo = g.get_repo("seu_usuario/seu_repositorio")  # Substitua com seus dados
-        
-        # Salva cada planilha como um arquivo CSV no repositório
-        def salvar_arquivo(nome_arquivo, dataframe):
-            content = dataframe.to_csv(index=False)
-            try:
-                # Tenta atualizar o arquivo se ele já existir
-                contents = repo.get_contents(f"dados/{nome_arquivo}.csv")
-                repo.update_file(contents.path, f"Atualização {nome_arquivo}", content, contents.sha)
-            except:
-                # Se o arquivo não existir, cria um novo
-                repo.create_file(f"dados/{nome_arquivo}.csv", f"Criação {nome_arquivo}", content)
-        
-        # Salva todos os arquivos
-        salvar_arquivo("movimentacoes", movimentacoes)
-        salvar_arquivo("produtos", produtos)
-        salvar_arquivo("responsaveis", responsaveis)
-        salvar_arquivo("unidades", unidades)
-        salvar_arquivo("usuarios", usuarios)
-        
-        return True
-        
-    except Exception as e:
-        st.error(f"Erro ao salvar dados no GitHub: {str(e)}")
-        return False
-# [Restante do código permanece igual...]
-
+if __name__ == "__main__":
+    main()
 # Função para adicionar movimentação
 def adicionar_movimentacao(movimentacoes, produtos, responsaveis, unidades, produto_nome, responsavel_nome, unidade_nome, tipo, quantidade, fornecedor, razao, data):
     try:
