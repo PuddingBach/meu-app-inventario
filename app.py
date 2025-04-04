@@ -97,6 +97,7 @@ def carregar_planilhas():
         dados.get('usuarios', pd.DataFrame(columns=required_columns))  # Retorna colunas padrão
     try:
         dados = carregar_dados()
+        )
         
         return (
             dados.get('movimentacoes', pd.DataFrame(columns=[
