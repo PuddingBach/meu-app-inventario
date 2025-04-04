@@ -94,7 +94,9 @@ def carregar_planilhas():
         dados.get('produtos', pd.DataFrame()),
         dados.get('responsaveis', pd.DataFrame()),
         dados.get('unidades', pd.DataFrame()),
-        dados.get('usuarios', pd.DataFrame(columns=required_columns))  # Retorna colunas padrão
+        dados.get('usuarios', pd.DataFrame(columns=required_columns)
+                 
+           )  # Retorna colunas padrão
         
         return (
             dados.get('movimentacoes', pd.DataFrame(columns=[
