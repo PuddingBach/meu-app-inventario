@@ -11,25 +11,62 @@ if 'google_creds' not in st.secrets:
 
 # Autenticação com Google Sheets
 def get_google_sheets_client():
+    """Versão reforçada da autenticação"""
     try:
+        # Verifica se as credenciais existem
+        if 'google_creds' not in st.secrets:
+            st.error("Credenciais não encontradas no secrets.toml")
+            st.stop()
+            
+        # Cria as credenciais
+        creds_info = st.secrets["google_creds"]
         creds = service_account.Credentials.from_service_account_info(
-            st.secrets["google_creds"],
+            creds_info,
             scopes=["https://www.googleapis.com/auth/spreadsheets"]
         )
         return gspread.authorize(creds)
     except Exception as e:
-        st.error(f"Erro de autenticação: {e}")
+        st.error(f"Falha na autenticação: {type(e).__name__} - {str(e)}")
         st.stop()
 
-# Configurações da planilha
-SPREADSHEET_ID = st.secrets.get("SPREADSHEET_ID", "seu-id-da-planilha")
-SHEET_NAMES = {
-    'movimentacoes': 'movimentacoes',
-    'produtos': 'produtos',
-    'responsaveis': 'responsaveis',
-    'unidades': 'unidades',
-    'usuarios': 'usuarios'
-}
+def carregar_dados():
+    """Versão robusta com tratamento de erros detalhado"""
+    try:
+        gc = get_google_sheets_client()
+        
+        # Verificação EXTRA do ID
+        if not SPREADSHEET_ID or not isinstance(SPREADSHEET_ID, str) or len(SPREADSHEET_ID) < 10:
+            st.error(f"ID inválido: '{SPREADSHEET_ID}'. Deve ser uma string com 44 caracteres.")
+            st.stop()
+        
+        try:
+            spreadsheet = gc.open_by_key(SPREADSHEET_ID)
+            st.session_state.spreadsheet_title = spreadsheet.title  # Para debug
+        except gspread.SpreadsheetNotFound:
+            st.error(f"Planilha com ID '{SPREADSHEET_ID}' não encontrada. Ações necessárias:")
+            st.error("1. Verifique se o ID está correto (copie da URL da planilha)")
+            st.error("2. Compartilhe a planilha com: " + creds_info['client_email'])
+            st.error("3. Verifique se a planilha não foi movida para lixeira")
+            st.stop()
+        except gspread.APIError as e:
+            st.error(f"Erro na API Google: {e.response.text}")
+            st.stop()
+            
+        # Carrega os dados
+        dados = {}
+        for key, sheet_name in SHEET_NAMES.items():
+            try:
+                worksheet = spreadsheet.worksheet(sheet_name)
+                dados[key] = pd.DataFrame(worksheet.get_all_records())
+            except gspread.WorksheetNotFound:
+                dados[key] = pd.DataFrame()
+                st.warning(f"Aba '{sheet_name}' não encontrada - DataFrame vazio criado")
+        
+        return dados
+        
+    except Exception as e:
+        st.error(f"Falha crítica: {type(e).__name__} - {str(e)}")
+        st.stop()
 
 def carregar_dados():
     """Carrega todos os dados das planilhas do Google Sheets"""
