@@ -4,202 +4,163 @@ import gspread
 from google.oauth2 import service_account
 from datetime import datetime
 
-# Configurações do Google Sheets
+# Configuração inicial
+st.set_page_config(page_title="Sistema de Inventário", layout="wide")
+
+# --- VERIFICAÇÃO DAS CREDENCIAIS ---
 if 'google_creds' not in st.secrets:
-    st.error("❌ Credenciais do Google Sheets não configuradas!")
+    st.error("❌ Credenciais do Google Sheets não encontradas no secrets.toml")
     st.stop()
 
-SPREADSHEET_ID = "1i7YM5eQH9ze6oD7s_aciuwpWKM8moFqm76rmA6NcJ4A"
+try:
+    CREDS = service_account.Credentials.from_service_account_info(
+        st.secrets["google_creds"],
+        scopes=["https://www.googleapis.com/auth/spreadsheets"]
+    )
+    CLIENT_EMAIL = st.secrets["google_creds"]["client_email"]
+except Exception as e:
+    st.error(f"❌ Erro ao carregar credenciais: {str(e)}")
+    st.stop()
 
-# Autenticação com Google Sheets
-def get_google_sheets_client():
-    """Versão reforçada da autenticação"""
+# --- CONFIGURAÇÃO DA PLANILHA ---
+SPREADSHEET_ID = st.secrets.get("SPREADSHEET_ID")
+if not SPREADSHEET_ID or len(SPREADSHEET_ID) < 44:
+    st.error("❌ SPREADSHEET_ID inválido ou não configurado")
+    st.stop()
+
+SHEET_NAMES = {
+    'movimentacoes': 'movimentacoes',
+    'produtos': 'produtos',
+    'responsaveis': 'responsaveis',
+    'unidades': 'unidades',
+    'usuarios': 'usuarios'
+}
+
+# --- FUNÇÕES PRINCIPAIS ---
+@st.cache_resource(ttl=300)
+def get_gs_client():
+    """Retorna o cliente autenticado do Google Sheets"""
     try:
-        # Verifica se as credenciais existem
-        if 'google_creds' not in st.secrets:
-            st.error("Credenciais não encontradas no secrets.toml")
-            st.stop()
-            
-        # Cria as credenciais
-        creds_info = st.secrets["google_creds"]
-        creds = service_account.Credentials.from_service_account_info(
-            creds_info,
-            scopes=["https://www.googleapis.com/auth/spreadsheets"]
-        )
-        return gspread.authorize(creds)
+        return gspread.authorize(CREDS)
     except Exception as e:
-        st.error(f"Falha na autenticação: {type(e).__name__} - {str(e)}")
+        st.error(f"❌ Falha na autenticação: {str(e)}")
         st.stop()
 
-def get_google_sheets_client():
-    """Versão reforçada da autenticação"""
+def load_sheet_data():
+    """Carrega todos os dados das planilhas com tratamento robusto de erros"""
     try:
-        # Verifica se as credenciais existem
-        if 'google_creds' not in st.secrets:
-            st.error("Credenciais não encontradas no secrets.toml")
-            st.stop()
-            
-        # Cria as credenciais
-        creds_info = st.secrets["google_creds"]
-        creds = service_account.Credentials.from_service_account_info(
-            creds_info,
-            scopes=["https://www.googleapis.com/auth/spreadsheets"]
-        )
-        return gspread.authorize(creds)
-    except Exception as e:
-        st.error(f"Falha na autenticação: {type(e).__name__} - {str(e)}")
-        st.stop()
-
-def carregar_dados():
-    """Versão robusta com tratamento de erros detalhado"""
-    try:
-        gc = get_google_sheets_client()
+        gc = get_gs_client()
         
-        # Verificação EXTRA do ID
-        if not SPREADSHEET_ID or not isinstance(SPREADSHEET_ID, str) or len(SPREADSHEET_ID) < 10:
-            st.error(f"ID inválido: '{SPREADSHEET_ID}'. Deve ser uma string com 44 caracteres.")
-            st.stop()
-        
+        # Verificação EXTRA de acesso
         try:
             spreadsheet = gc.open_by_key(SPREADSHEET_ID)
-            st.session_state.spreadsheet_title = spreadsheet.title  # Para debug
+            st.session_state['spreadsheet_title'] = spreadsheet.title
         except gspread.SpreadsheetNotFound:
-            st.error(f"Planilha com ID '{SPREADSHEET_ID}' não encontrada. Ações necessárias:")
-            st.error("1. Verifique se o ID está correto (copie da URL da planilha)")
-            st.error("2. Compartilhe a planilha com: " + creds_info['client_email'])
-            st.error("3. Verifique se a planilha não foi movida para lixeira")
+            st.error(f"📌 Planilha não encontrada. Verifique:")
+            st.error(f"1. ID correto: {SPREADSHEET_ID}")
+            st.error(f"2. Compartilhada com: {CLIENT_EMAIL}")
+            st.error(f"3. Não está na lixeira")
             st.stop()
-        except gspread.APIError as e:
-            st.error(f"Erro na API Google: {e.response.text}")
-            st.stop()
-            
-        # Carrega os dados
-        dados = {}
+        
+        # Carregamento das abas
+        data = {}
         for key, sheet_name in SHEET_NAMES.items():
             try:
                 worksheet = spreadsheet.worksheet(sheet_name)
-                dados[key] = pd.DataFrame(worksheet.get_all_records())
+                records = worksheet.get_all_records()
+                data[key] = pd.DataFrame(records)
             except gspread.WorksheetNotFound:
-                dados[key] = pd.DataFrame()
-                st.warning(f"Aba '{sheet_name}' não encontrada - DataFrame vazio criado")
+                st.warning(f"⚠️ Aba '{sheet_name}' não encontrada - Criando DataFrame vazio")
+                data[key] = pd.DataFrame()
+            except Exception as e:
+                st.error(f"Erro na aba {sheet_name}: {str(e)}")
+                data[key] = pd.DataFrame()
         
-        return dados
-        
+        return data
+    
     except Exception as e:
-        st.error(f"Falha crítica: {type(e).__name__} - {str(e)}")
+        st.error(f"🚨 Erro crítico: {str(e)}")
         st.stop()
-def salvar_dados(dataframes):
-    """Salva os dataframes nas planilhas correspondentes do Google Sheets"""
+
+def save_data(dataframes):
+    """Salva dados nas planilhas com verificação em tempo real"""
     try:
-        gc = get_google_sheets_client()
+        gc = get_gs_client()
         spreadsheet = gc.open_by_key(SPREADSHEET_ID)
         
         for sheet_name, df in dataframes.items():
-            if sheet_name in SHEET_NAMES:
-                try:
-                    worksheet = spreadsheet.worksheet(SHEET_NAMES[sheet_name])
-                except gspread.WorksheetNotFound:
-                    worksheet = spreadsheet.add_worksheet(title=SHEET_NAMES[sheet_name], rows=100, cols=10)
+            if sheet_name not in SHEET_NAMES:
+                continue
                 
-                # Limpa a planilha
-                worksheet.clear()
+            try:
+                worksheet = spreadsheet.worksheet(SHEET_NAMES[sheet_name])
+            except gspread.WorksheetNotFound:
+                worksheet = spreadsheet.add_worksheet(
+                    title=SHEET_NAMES[sheet_name], 
+                    rows=100, 
+                    cols=len(df.columns)
                 
-                # Atualiza com novos dados
-                worksheet.update(
-                    [df.columns.values.tolist()] + df.values.tolist()
-                )
+            # Atualização em lote
+            worksheet.clear()
+            worksheet.update(
+                [df.columns.values.tolist()] + df.fillna('').values.tolist(),
+                value_input_option='USER_ENTERED'
+            )
         
-        st.success("✅ Dados salvos com sucesso no Google Sheets!")
+        st.toast("✅ Dados salvos com sucesso!", icon="✅")
         return True
+        
     except Exception as e:
-        st.error(f"Erro ao salvar dados: {e}")
+        st.error(f"❌ Falha ao salvar: {str(e)}")
         return False
 
-@st.cache_data(ttl=300)
-def carregar_planilhas():
-    """
-    Carrega todas as planilhas do Google Sheets
-    Retorna: (movimentacoes, produtos, responsaveis, unidades, usuarios)
-    """
+# --- SISTEMA DE LOGIN ---
+def check_login(username, password, users_df):
+    """Valida credenciais com tratamento seguro"""
     try:
-        dados = carregar_dados()
-        
-        # Colunas padrão para cada planilha
-        default_columns = {
-            'movimentacoes': ['ID Produto', 'ID Responsavel', 'ID Unidade', 'Tipo', 'Quantidade', 'Fornecedor', 'Razão', 'Data'],
-            'produtos': ['ID Produto', 'Nome do Produto', 'Quantidade em Estoque', 'Unidade de Medida', 'Categoria'],
-            'responsaveis': ['ID Responsavel', 'Nome do Responsável', 'ID Unidade', 'Cargo', 'Telefone'],
-            'unidades': ['ID Unidade', 'Nome da Unidade', 'Endereço', 'Cidade', 'Estado'],
-            'usuarios': ['username', 'senha', 'nivel_acesso']
-        }
-        
-        # Garante que todas as colunas necessárias existam
-        result = []
-        for key in ['movimentacoes', 'produtos', 'responsaveis', 'unidades', 'usuarios']:
-            df = dados.get(key, pd.DataFrame())
+        if users_df.empty:
+            st.warning("Nenhum usuário cadastrado")
+            return False
             
-            # Adiciona colunas faltantes
-            for col in default_columns[key]:
-                if col not in df.columns:
-                    df[col] = "" if not df.empty else None
+        required_cols = ['username', 'senha', 'nivel_acesso']
+        if not all(col in users_df.columns for col in required_cols):
+            st.error("Estrutura inválida na planilha de usuários")
+            return False
             
-            result.append(df[default_columns[key]])  # Mantém apenas as colunas desejadas
-        
-        return tuple(result)
-        
-    except Exception as e:
-        st.error(f"Erro ao carregar planilhas: {e}")
-        return (
-            pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
-        )
-
-def verificar_login(username, senha, usuarios):
-    """Verifica as credenciais do usuário"""
-    try:
-        # Verifica se as colunas necessárias existem
-        required_columns = ['username', 'senha', 'nivel_acesso']
-        if not all(col in usuarios.columns for col in required_columns):
-            st.error("Estrutura da planilha de usuários incorreta")
-            return None
-        
-        # Remove espaços e converte para minúsculas para comparação
-        usuarios['username_clean'] = usuarios['username'].str.strip().str.lower()
-        usuarios['senha_clean'] = usuarios['senha'].astype(str).str.strip()
-        
-        username_clean = username.strip().lower()
-        senha_clean = senha.strip()
-        
-        usuario = usuarios.loc[
-            (usuarios['username_clean'] == username_clean) & 
-            (usuarios['senha_clean'] == senha_clean)
+        user = users_df[
+            (users_df['username'].str.strip().str.lower() == username.strip().lower()) &
+            (users_df['senha'].astype(str).str.strip() == password.strip())
         ]
         
-        if not usuario.empty:
-            st.session_state['autenticado'] = True
-            st.session_state['nivel_acesso'] = usuario.iloc[0]['nivel_acesso']
-            st.session_state['username'] = usuario.iloc[0]['username']
-            return usuario.iloc[0]['nivel_acesso']
-        
-        st.warning("Usuário ou senha incorretos")
-        return None
+        if not user.empty:
+            st.session_state['user'] = {
+                'name': user.iloc[0]['username'],
+                'level': user.iloc[0]['nivel_acesso']
+            }
+            return True
+            
+        st.warning("Credenciais inválidas")
+        return False
         
     except Exception as e:
-        st.error(f"Erro ao verificar login: {e}")
-        return None
+        st.error(f"Erro no login: {str(e)}")
+        return False
 
-def mostrar_pagina_login():
-    """Exibe a página de login"""
-    st.title("Sistema de Inventário - Login")
+# --- INTERFACE DO USUÁRIO ---
+def show_login():
+    """Página de login"""
+    st.title("🔒 Login do Sistema")
+    
+    _, _, _, _, users_df = load_sheet_data()
     
     with st.form("login_form"):
         username = st.text_input("Usuário")
         password = st.text_input("Senha", type="password")
         
         if st.form_submit_button("Entrar"):
-            _, _, _, _, usuarios = carregar_planilhas()
-            nivel_acesso = verificar_login(username, password, usuarios)
-            if nivel_acesso:
+            if check_login(username, password, users_df):
                 st.rerun()
+
 # Função para adicionar movimentação
 def adicionar_movimentacao(movimentacoes, produtos, responsaveis, unidades, produto_nome, responsavel_nome, unidade_nome, tipo, quantidade, fornecedor, razao, data):
     try:
