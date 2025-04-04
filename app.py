@@ -35,7 +35,19 @@ def carregar_dados():
     """Carrega todos os dados das planilhas do Google Sheets"""
     try:
         gc = get_google_sheets_client()
-        spreadsheet = gc.open_by_key(SPREADSHEET_ID)
+        
+        # Verificação adicional do ID
+        if not SPREADSHEET_ID or len(SPREADSHEET_ID) < 10:
+            st.error("ID da planilha inválido. Verifique SPREADSHEET_ID no secrets.toml")
+            st.stop()
+        
+        try:
+            spreadsheet = gc.open_by_key(SPREADSHEET_ID)
+        except gspread.SpreadsheetNotFound:
+            st.error("Planilha não encontrada. Verifique:")
+            st.error("1. O ID está correto no secrets.toml")
+            st.error("2. A planilha foi compartilhada com: " + st.secrets['google_creds']['client_email'])
+            st.stop()
         
         dados = {}
         for key, sheet_name in SHEET_NAMES.items():
@@ -44,18 +56,20 @@ def carregar_dados():
                 records = worksheet.get_all_records()
                 dados[key] = pd.DataFrame(records)
             except gspread.WorksheetNotFound:
-                st.warning(f"Planilha '{sheet_name}' não encontrada, criando DataFrame vazio")
+                st.warning(f"Aba '{sheet_name}' não encontrada - criando DataFrame vazio")
                 dados[key] = pd.DataFrame()
         
         return dados
+        
     except Exception as e:
-        st.error(f"Erro ao carregar dados: {e}")
+        st.error(f"Erro crítico ao carregar dados: {str(e)}")
+        st.error("Verifique sua conexão com a internet e as permissões da planilha")
         return {
             'movimentacoes': pd.DataFrame(),
             'produtos': pd.DataFrame(),
             'responsaveis': pd.DataFrame(),
             'unidades': pd.DataFrame(),
-            'usuarios': pd.DataFrame()
+            'usuarios': pd.DataFrame(columns=['username', 'senha', 'nivel_acesso'])
         }
 
 def salvar_dados(dataframes):
