@@ -4,6 +4,46 @@ import gspread
 from google.oauth2 import service_account
 from datetime import datetime
 
+# Verificação EXTRA do SPREADSHEET_ID
+SPREADSHEET_ID = st.secrets.get("SPREADSHEET_ID", "")
+
+if not SPREADSHEET_ID or not isinstance(SPREADSHEET_ID, str) or len(SPREADSHEET_ID) < 44:
+    st.error(f"""
+    ❌ Problema com o SPREADSHEET_ID. Verifique:
+    1. Foi adicionado ao secrets.toml?
+    2. O ID tem pelo menos 44 caracteres?
+    3. O ID atual é: '{SPREADSHEET_ID}'
+    """)
+    st.stop()
+
+# Adicione isto para debug (remova depois)
+st.success(f"✅ ID válido detectado: {SPREADSHEET_ID[:10]}...{SPREADSHEET_ID[-10:]}")
+
+# Verificação EXTRA do SPREADSHEET_ID
+SPREADSHEET_ID = st.secrets.get("SPREADSHEET_ID", "")
+
+if not SPREADSHEET_ID or not isinstance(SPREADSHEET_ID, str) or len(SPREADSHEET_ID) < 44:
+    st.error(f"""
+    ❌ Problema com o SPREADSHEET_ID. Verifique:
+    1. Foi adicionado ao secrets.toml?
+    2. O ID tem pelo menos 44 caracteres?
+    3. O ID atual é: '{SPREADSHEET_ID}'
+    """)
+    st.stop()
+
+# Adicione isto para debug (remova depois)
+st.success(f"✅ ID válido detectado: {SPREADSHEET_ID[:10]}...{SPREADSHEET_ID[-10:]}")
+
+if st.button("🔍 Testar Conexão com Google Sheets"):
+    try:
+        gc = get_gs_client()
+        spreadsheet = gc.open_by_key(SPREADSHEET_ID)
+        st.success(f"✅ Conexão OK! Planilha: '{spreadsheet.title}'")
+        st.write("Abas disponíveis:", [ws.title for ws in spreadsheet.worksheets()])
+    except Exception as e:
+        st.error(f"❌ Falha: {str(e)}")
+
+# aoagar posteriomente
 # Configuração inicial
 st.set_page_config(page_title="Sistema de Inventário", layout="wide")
 
