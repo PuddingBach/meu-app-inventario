@@ -39,9 +39,13 @@ def carregar_dados():
         
         dados = {}
         for key, sheet_name in SHEET_NAMES.items():
-            worksheet = spreadsheet.worksheet(sheet_name)
-            records = worksheet.get_all_records()
-            dados[key] = pd.DataFrame(records)
+            try:
+                worksheet = spreadsheet.worksheet(sheet_name)
+                records = worksheet.get_all_records()
+                dados[key] = pd.DataFrame(records)
+            except gspread.WorksheetNotFound:
+                st.warning(f"Planilha '{sheet_name}' não encontrada, criando DataFrame vazio")
+                dados[key] = pd.DataFrame()
         
         return dados
     except Exception as e:
@@ -62,9 +66,12 @@ def salvar_dados(dataframes):
         
         for sheet_name, df in dataframes.items():
             if sheet_name in SHEET_NAMES:
-                worksheet = spreadsheet.worksheet(SHEET_NAMES[sheet_name])
+                try:
+                    worksheet = spreadsheet.worksheet(SHEET_NAMES[sheet_name])
+                except gspread.WorksheetNotFound:
+                    worksheet = spreadsheet.add_worksheet(title=SHEET_NAMES[sheet_name], rows=100, cols=10)
                 
-                # Limpa a planilha (exceto cabeçalho)
+                # Limpa a planilha
                 worksheet.clear()
                 
                 # Atualiza com novos dados
@@ -78,53 +85,91 @@ def salvar_dados(dataframes):
         st.error(f"Erro ao salvar dados: {e}")
         return False
 
-@st.cache_data(ttl=300)  # Cache de 5 minutos
+@st.cache_data(ttl=300)
 def carregar_planilhas():
-    dados = carregar_dados()  # Sua função existente que lê do Google Sheets
-    
-    # Garante que a planilha de usuários tenha as colunas necessárias
-    if 'usuarios' in dados:
-        required_columns = ['username', 'senha', 'nivel_acesso']
-        for col in required_columns:
-            if col not in dados['usuarios'].columns:
-                dados['usuarios'][col] = ""  # Cria coluna vazia se não existir
-    
-    return (
-        dados.get('movimentacoes', pd.DataFrame()),
-        dados.get('produtos', pd.DataFrame()),
-        dados.get('responsaveis', pd.DataFrame()),
-        dados.get('unidades', pd.DataFrame()),
-        dados.get('usuarios', pd.DataFrame(columns=required_columns)
-                 
-           )  # Retorna colunas padrão
+    """
+    Carrega todas as planilhas do Google Sheets
+    Retorna: (movimentacoes, produtos, responsaveis, unidades, usuarios)
+    """
+    try:
+        dados = carregar_dados()
         
-        return (
-            dados.get('movimentacoes', pd.DataFrame(columns=[
-                'ID Produto', 'ID Responsavel', 'ID Unidade', 'Tipo', 
-                'Quantidade', 'Fornecedor', 'Razão', 'Data'
-            ])),
-            dados.get('produtos', pd.DataFrame(columns=[
-                'ID Produto', 'Nome do Produto', 'Quantidade em Estoque', 
-                'Unidade de Medida', 'Categoria'
-            ])),
-            dados.get('responsaveis', pd.DataFrame(columns=[
-                'ID Responsavel', 'Nome do Responsável', 'ID Unidade', 
-                'Cargo', 'Telefone'
-            ])),
-            dados.get('unidades', pd.DataFrame(columns=[
-                'ID Unidade', 'Nome da Unidade', 'Endereço', 'Cidade', 'Estado'
-            ])),
-            dados.get('usuarios', pd.DataFrame(columns=[
-                'username', 'senha', 'nivel_acesso'
-            ]))
-        )
+        # Colunas padrão para cada planilha
+        default_columns = {
+            'movimentacoes': ['ID Produto', 'ID Responsavel', 'ID Unidade', 'Tipo', 'Quantidade', 'Fornecedor', 'Razão', 'Data'],
+            'produtos': ['ID Produto', 'Nome do Produto', 'Quantidade em Estoque', 'Unidade de Medida', 'Categoria'],
+            'responsaveis': ['ID Responsavel', 'Nome do Responsável', 'ID Unidade', 'Cargo', 'Telefone'],
+            'unidades': ['ID Unidade', 'Nome da Unidade', 'Endereço', 'Cidade', 'Estado'],
+            'usuarios': ['username', 'senha', 'nivel_acesso']
+        }
+        
+        # Garante que todas as colunas necessárias existam
+        result = []
+        for key in ['movimentacoes', 'produtos', 'responsaveis', 'unidades', 'usuarios']:
+            df = dados.get(key, pd.DataFrame())
+            
+            # Adiciona colunas faltantes
+            for col in default_columns[key]:
+                if col not in df.columns:
+                    df[col] = "" if not df.empty else None
+            
+            result.append(df[default_columns[key]])  # Mantém apenas as colunas desejadas
+        
+        return tuple(result)
+        
     except Exception as e:
         st.error(f"Erro ao carregar planilhas: {e}")
         return (
             pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
         )
 
+def verificar_login(username, senha, usuarios):
+    """Verifica as credenciais do usuário"""
+    try:
+        # Verifica se as colunas necessárias existem
+        required_columns = ['username', 'senha', 'nivel_acesso']
+        if not all(col in usuarios.columns for col in required_columns):
+            st.error("Estrutura da planilha de usuários incorreta")
+            return None
+        
+        # Remove espaços e converte para minúsculas para comparação
+        usuarios['username_clean'] = usuarios['username'].str.strip().str.lower()
+        usuarios['senha_clean'] = usuarios['senha'].astype(str).str.strip()
+        
+        username_clean = username.strip().lower()
+        senha_clean = senha.strip()
+        
+        usuario = usuarios.loc[
+            (usuarios['username_clean'] == username_clean) & 
+            (usuarios['senha_clean'] == senha_clean)
+        ]
+        
+        if not usuario.empty:
+            st.session_state['autenticado'] = True
+            st.session_state['nivel_acesso'] = usuario.iloc[0]['nivel_acesso']
+            st.session_state['username'] = usuario.iloc[0]['username']
+            return usuario.iloc[0]['nivel_acesso']
+        
+        st.warning("Usuário ou senha incorretos")
+        return None
+        
+    except Exception as e:
+        st.error(f"Erro ao verificar login: {e}")
+        return None
 
+def mostrar_pagina_login():
+    """Exibe a página de login"""
+    st.title("Sistema de Inventário - Login")
+    
+    with st.form("login_form"):
+        username = st.text_input("Usuário")
+        password = st.text_input("Senha", type="password")
+        
+        if st.form_submit_button("Entrar"):
+            _, _, _, _, usuarios = carregar_planilhas()
+            nivel_acesso = verificar_login(username, password, usuarios)
+            if nivel_acesso:
+                st.rerun()
 # Função para adicionar movimentação
 def adicionar_movimentacao(movimentacoes, produtos, responsaveis, unidades, produto_nome, responsavel_nome, unidade_nome, tipo, quantidade, fornecedor, razao, data):
     try:
