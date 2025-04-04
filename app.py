@@ -31,6 +31,25 @@ def get_google_sheets_client():
         st.error(f"Falha na autenticação: {type(e).__name__} - {str(e)}")
         st.stop()
 
+def get_google_sheets_client():
+    """Versão reforçada da autenticação"""
+    try:
+        # Verifica se as credenciais existem
+        if 'google_creds' not in st.secrets:
+            st.error("Credenciais não encontradas no secrets.toml")
+            st.stop()
+            
+        # Cria as credenciais
+        creds_info = st.secrets["google_creds"]
+        creds = service_account.Credentials.from_service_account_info(
+            creds_info,
+            scopes=["https://www.googleapis.com/auth/spreadsheets"]
+        )
+        return gspread.authorize(creds)
+    except Exception as e:
+        st.error(f"Falha na autenticação: {type(e).__name__} - {str(e)}")
+        st.stop()
+
 def carregar_dados():
     """Versão robusta com tratamento de erros detalhado"""
     try:
@@ -69,33 +88,6 @@ def carregar_dados():
     except Exception as e:
         st.error(f"Falha crítica: {type(e).__name__} - {str(e)}")
         st.stop()
-
-def carregar_dados():
-    """Carrega todos os dados das planilhas do Google Sheets"""
-    try:
-        gc = get_google_sheets_client()
-        spreadsheet = gc.open_by_key(SPREADSHEET_ID)
-        
-        dados = {}
-        for key, sheet_name in SHEET_NAMES.items():
-            try:
-                worksheet = spreadsheet.worksheet(sheet_name)
-                records = worksheet.get_all_records()
-                dados[key] = pd.DataFrame(records)
-            except gspread.WorksheetNotFound:
-                st.warning(f"Planilha '{sheet_name}' não encontrada, criando DataFrame vazio")
-                dados[key] = pd.DataFrame()
-        
-        return dados
-    except Exception as e:
-        st.error(f"Erro ao carregar dados: {e}")
-        return {
-            'movimentacoes': pd.DataFrame(),
-            'produtos': pd.DataFrame(),
-            'responsaveis': pd.DataFrame(),
-            'unidades': pd.DataFrame(),
-            'usuarios': pd.DataFrame()
-        }
 def salvar_dados(dataframes):
     """Salva os dataframes nas planilhas correspondentes do Google Sheets"""
     try:
