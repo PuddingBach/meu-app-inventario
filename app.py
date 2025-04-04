@@ -115,37 +115,7 @@ def carregar_planilhas():
             pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
         )
 
-# Exemplo de uso na aplicação
-def main():
-    st.title("Sistema de Inventário com Google Sheets")
-    
-    # Carrega os dados
-    movimentacoes, produtos, responsaveis, unidades, usuarios = carregar_planilhas()
-    
-    # Exemplo de edição
-    with st.form("editar_produto"):
-        st.write("Editar Produto")
-        produto_id = st.text_input("ID do Produto")
-        novo_nome = st.text_input("Novo Nome")
-        nova_quantidade = st.number_input("Nova Quantidade", min_value=0)
-        
-        if st.form_submit_button("Salvar Alterações"):
-            # Atualiza o DataFrame local
-            produtos.loc[produtos['ID Produto'] == produto_id, 'Nome do Produto'] = novo_nome
-            produtos.loc[produtos['ID Produto'] == produto_id, 'Quantidade em Estoque'] = nova_quantidade
-            
-            # Salva no Google Sheets
-            if salvar_dados({
-                'movimentacoes': movimentacoes,
-                'produtos': produtos,
-                'responsaveis': responsaveis,
-                'unidades': unidades,
-                'usuarios': usuarios
-            }):
-                st.rerun()  # Recarrega os dados
 
-if __name__ == "__main__":
-    main()
 # Função para adicionar movimentação
 def adicionar_movimentacao(movimentacoes, produtos, responsaveis, unidades, produto_nome, responsavel_nome, unidade_nome, tipo, quantidade, fornecedor, razao, data):
     try:
@@ -180,20 +150,30 @@ def adicionar_movimentacao(movimentacoes, produtos, responsaveis, unidades, prod
 # Função para verificar o login
 def verificar_login(username, senha, usuarios):
     try:
-        # Verificar se as colunas necessárias existem
-        if 'username' not in usuarios.columns or 'senha' not in usuarios.columns:
-            st.error("As colunas 'username' e 'senha' não foram encontradas no DataFrame 'usuarios'.")
+        # Verificação mais robusta das colunas
+        required_columns = ['username', 'senha', 'nivel_acesso']
+        missing_columns = [col for col in required_columns if col not in usuarios.columns]
+        
+        if missing_columns:
+            st.error(f"Colunas obrigatórias não encontradas: {', '.join(missing_columns)}")
             return None
         
-        # Verificar o login
-        usuario = usuarios.loc[(usuarios['username'].str.strip() == username.strip()) & 
-                               (usuarios['senha'].astype(str).str.strip() == senha.strip())]
+        # Verificação com tratamento de casos nulos e normalização
+        usuario = usuarios.loc[
+            (usuarios['username'].str.strip().str.lower() == username.strip().lower()) & 
+            (usuarios['senha'].astype(str).str.strip() == senha.strip())
+        ]
         
         if not usuario.empty:
+            st.session_state['user_authenticated'] = True  # Adiciona estado de autenticação
+            st.session_state['user_level'] = usuario.iloc[0]['nivel_acesso']  # Armazena nível de acesso
             return usuario.iloc[0]['nivel_acesso']
+        
+        st.warning("Credenciais inválidas")  # Feedback mais amigável
         return None
+        
     except Exception as e:
-        st.error(f"Erro ao verificar login: {e}")
+        st.error(f"Erro inesperado ao verificar login: {str(e)}")
         return None
 
 # Função para adicionar novo usuário
